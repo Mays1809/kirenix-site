@@ -49,7 +49,7 @@
 <div class="klinika">
   <header class="bar">
     <div class="wrap bar-in">
-      <a class="logo" href="/" aria-label="Kirenix — выбор продукта"><b>K</b><span>Kirenix <em>Клиника</em></span></a>
+      <a class="logo" href="/" data-tag aria-label="Kirenix — выбор продукта"><b>K</b><span>Kirenix <em>Клиника</em></span></a>
       <nav class="nav" aria-label="Разделы">
         <a href="#how">Как работает</a>
         <a href="#roles">Роли</a>
@@ -76,7 +76,7 @@
             <li><svg class="i"><use href="#i-server"/></svg>Сервер в России</li>
             <li><svg class="i"><use href="#i-gift"/></svg>Внедрение бесплатно для первых клиник</li>
           </ul>
-          <p class="switch">Работаете без клиники? <a href="https://uchet.kirenix.ru/">Вам подойдёт Kirenix Учёт</a></p>
+          <p class="switch">Работаете без клиники? <a href="https://uchet.kirenix.ru/" data-tag>Вам подойдёт Kirenix Учёт</a></p>
         </div>
         <div class="hero-visual" aria-hidden="true"><img class="lock" src="/assets/lock.jpg" width="720" height="720" alt=""></div>
       </div>
@@ -278,8 +278,8 @@
     <div class="wrap foot-in">
       <span>© 2026 Kirenix</span>
       <span>Самозанятый Шевелев К.&nbsp;В., ИНН 166026856302</span>
-      <a href="https://uchet.kirenix.ru/">Kirenix Учёт — для частных специалистов</a>
-      <a href="/">Выбор продукта</a>
+      <a href="https://uchet.kirenix.ru/" data-tag>Kirenix Учёт — для частных специалистов</a>
+      <a href="/" data-tag>Выбор продукта</a>
     </div>
   </footer>
 </div>
@@ -329,6 +329,19 @@
   minus.addEventListener('click', function () { if (n > 1) { n--; render(); } });
   plus.addEventListener('click', function () { if (n < 30) { n++; render(); } });
   render();
+})();
+</script>
+<script>
+// Метка рекламы из адреса (например ?c=direct) идёт дальше по ссылкам с data-tag:
+// Учёт на uchet.kirenix.ru сам запоминает её и засчитывает продажу этому каналу.
+(function () {
+  var m = location.search.match(/[?&]c=([A-Za-z0-9_-]{1,20})/);
+  if (!m) return;
+  document.querySelectorAll('a[data-tag]').forEach(function (a) {
+    var u = new URL(a.getAttribute('href'), location.href);
+    u.searchParams.set('c', m[1]);
+    a.href = u.href;
+  });
 })();
 </script>
 </body>
