@@ -55,7 +55,7 @@
     </section>
 
     <div class="paths">
-      <a class="path path-clinic" href="/klinika/">
+      <a class="path path-clinic" href="/klinika/" data-tag>
         <div class="path-visual" aria-hidden="true"><img class="lock" src="/assets/lock.jpg" width="720" height="720" alt=""></div>
         <div class="path-copy">
           <span class="kicker">Клиника</span>
@@ -70,7 +70,7 @@
         </div>
       </a>
 
-      <a class="path path-solo" href="https://uchet.kirenix.ru/">
+      <a class="path path-solo" href="https://uchet.kirenix.ru/" data-tag>
         <div class="path-visual" aria-hidden="true">
           <div class="mini-uchet">
             <div class="mu-head"><b><em>Kirenix</em> Учёт</b><span class="mu-add">+ Пациент</span></div>
@@ -110,5 +110,18 @@
     <a href="https://t.me/aikiren">Telegram @aikiren</a>
   </div>
 </footer>
+<script>
+// Метка рекламы из адреса (например ?c=direct) идёт дальше по ссылкам с data-tag:
+// Учёт на uchet.kirenix.ru сам запоминает её и засчитывает продажу этому каналу.
+(function () {
+  var m = location.search.match(/[?&]c=([A-Za-z0-9_-]{1,20})/);
+  if (!m) return;
+  document.querySelectorAll('a[data-tag]').forEach(function (a) {
+    var u = new URL(a.getAttribute('href'), location.href);
+    u.searchParams.set('c', m[1]);
+    a.href = u.href;
+  });
+})();
+</script>
 </body>
 </html>
