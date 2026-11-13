@@ -1,0 +1,1902 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#3B5BDB">
+<meta name="description" content="Kirenix Клиника: протокол приёма, план лечения и рекомендации. Данные пациентов хранятся только на компьютере клиники.">
+<title>Kirenix Клиника</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* Kirenix Клиника — рабочая версия для одного специалиста. Стили выросли из демо: те же цвета, карточки и бланки клиники. */
+:root{
+  --bg:#F4F5FA; --surface:#FFFFFF; --surface-2:#EEF1F8; --text:#1A1A2E; --muted:#5E6476; --border:#DDE1EC;
+  --accent:#3B5BDB; --accent-weak:#E8EDFF; --accent-ink:#2C46B8; --on-accent:#FFFFFF;
+  --ok:#2E7D32; --ok-weak:#E5F3E6; --warn:#9A5800; --warn-weak:#FFF1DC; --danger:#C62828; --danger-weak:#FCE9E9;
+  --face:#AEB5C6; --paper:#FFFFFF; --paper-ink:#1A1A2E; --paper-line:#C9CEDA; --shadow:0 1px 2px rgba(26,26,46,.06),0 4px 16px rgba(26,26,46,.06);
+  --gold:#A8844F; --gold-ink:#5B4C38; --gold-soft:#8A7454; --blank-ink:#231C14; --paper-muted:#6A6F80;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --surface:#191C2B; --surface-2:#22263A; --text:#E7E9F3; --muted:#A3A9BD; --border:#2F3449;
+    --accent:#8197F2; --accent-weak:#252D50; --accent-ink:#B4C3FF; --on-accent:#0E1224;
+    --ok:#7BC77F; --ok-weak:#1D2F22; --warn:#E5A453; --warn-weak:#35291A; --danger:#F08383; --danger-weak:#3A2026;
+    --face:#596079; --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 var(--font);min-height:100vh}
+body.modal-open{overflow:hidden}
+h1,h2,h3{margin:0;line-height:1.2;text-wrap:balance}
+h1{font-size:22px} h2{font-size:20px} h3{font-size:15px}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* шапка */
+.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border)}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;padding-block:9px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand > div:last-child{min-width:0;display:flex;flex-direction:column}
+.brand b{font-size:16px;letter-spacing:.01em}
+.brand .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw}
+.logo{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:16px;flex:none}
+.top-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.save-state{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.save-state .dot{width:7px;height:7px}
+.save-state.ok{color:var(--ok)} .save-state.pending{color:var(--muted)} .save-state.err{color:var(--danger);font-weight:700}
+.who-am-i{font-size:13px;color:var(--muted);white-space:nowrap}
+
+main{padding-block:18px 40px}
+.foot{padding-block:0 24px;color:var(--muted);font-size:12px}
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 16px;margin-bottom:14px}
+.page-head p{color:var(--muted);font-size:13px;margin-top:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px}
+.card-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:flex-start;justify-content:space-between}
+.card-head > div{min-width:0;flex:1 1 260px}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.row.end{justify-content:flex-end}
+.stack{display:flex;flex-direction:column;gap:12px}
+.stack-sm{display:flex;flex-direction:column;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.chip.ok{background:var(--ok-weak);color:var(--ok)}
+.chip.warn{background:var(--warn-weak);color:var(--warn)}
+.chip.bad{background:var(--danger-weak);color:var(--danger)}
+.chip.neutral{background:var(--surface-2);color:var(--muted)}
+.chip.info{background:var(--accent-weak);color:var(--accent-ink)}
+.chip.kind{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--border)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.btn{border:1px solid var(--border);background:var(--surface);padding:8px 13px;border-radius:9px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;line-height:1.3}
+.btn:hover{border-color:var(--accent)}
+.btn svg{flex:none}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn-primary:disabled{opacity:.45;cursor:not-allowed}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--muted);padding-inline:6px}
+.btn-ghost:hover{color:var(--text);border-color:transparent}
+.btn-danger{color:var(--danger)}
+.btn-danger:hover{border-color:var(--danger)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn.wide{width:100%}
+.lock{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:10px;background:var(--surface-2);font-size:13px;color:var(--muted)}
+.lock svg{flex:none;margin-top:1px}
+label.field{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted);min-width:0}
+label.field > span.req::after{content:" *";color:var(--danger)}
+input[type=text],input[type=search],input[type=date],input[type=number],input[type=password],input[type=tel],select,textarea{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;color:var(--text);width:100%;min-width:0}
+input[type=date]{min-height:38px}
+input[aria-invalid="true"],textarea[aria-invalid="true"]{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger) inset}
+textarea{resize:vertical;min-height:84px;line-height:1.45}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+.note{font-size:12.5px;color:var(--muted)}
+.err-text{color:var(--danger);font-size:13px;font-weight:600}
+.banner{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:12px;background:var(--warn-weak);color:var(--warn);margin-bottom:14px;font-size:13.5px}
+.banner b{font-weight:700}
+.banner.bad{background:var(--danger-weak);color:var(--danger)}
+.banner.info{background:var(--accent-weak);color:var(--accent-ink)}
+
+/* вход и первая настройка */
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.gate .card{width:min(460px,100%);padding:22px 22px 20px;box-shadow:var(--shadow)}
+.gate-brand{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.gate-brand .logo{width:40px;height:40px;font-size:20px;border-radius:11px}
+.gate-brand b{display:block;font-size:18px}
+.gate h2{font-size:18px;margin-bottom:6px}
+.gate .stack{gap:12px}
+.steps-dots{display:flex;gap:6px;margin-bottom:14px}
+.steps-dots span{height:4px;flex:1;border-radius:4px;background:var(--surface-2)}
+.steps-dots span.on{background:var(--accent)}
+.pin-input{font-size:22px!important;letter-spacing:.35em;text-align:center;font-family:var(--mono)}
+.gate .linkish{background:none;border:0;padding:0;color:var(--accent-ink);font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:2px}
+.fatal{max-width:560px}
+
+/* главный экран */
+.split{display:grid;grid-template-columns:minmax(0,330px) minmax(0,1fr);gap:16px;align-items:start}
+.list-col{position:sticky;top:70px}
+.side-sec{display:flex;flex-direction:column;gap:8px}
+.side-sec h3{font-size:12.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:4px}
+.visit-list{display:flex;flex-direction:column;gap:8px}
+.visit{display:grid;grid-template-columns:52px minmax(0,1fr);gap:4px 10px;text-align:left;width:100%;border:1px solid var(--border);background:var(--surface);border-radius:11px;padding:10px 12px;color:var(--text)}
+.visit:hover{border-color:var(--accent)}
+.visit[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.visit .t{font-weight:700;font-variant-numeric:tabular-nums}
+.visit .n{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.visit .meta{grid-column:2;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.visit.hit{grid-template-columns:minmax(0,1fr)}
+.visit.hit .meta{grid-column:1}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+.back{display:none}
+.welcome h2{margin-bottom:6px}
+.welcome ol{margin:10px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13.5px}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+
+/* карта пациента */
+.patient-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:flex-start}
+.patient-head > div:first-child{min-width:0}
+.patient-head h2{overflow-wrap:anywhere}
+.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.kv{display:grid;grid-template-columns:minmax(0,130px) minmax(0,1fr);gap:4px 10px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.hist{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.hist-item{padding:9px 10px;border-radius:9px;background:var(--surface-2);text-align:left;border:1px solid transparent;width:100%;color:var(--text)}
+button.hist-item:hover{border-color:var(--accent)}
+.hist-item .said{display:block;margin-top:3px;font-size:12.5px}
+.start-visit{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.start-visit label{flex:1 1 220px}
+.form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.form-grid .span2{grid-column:span 2}
+.form-grid .span3{grid-column:1/-1}
+.checkline{display:flex;gap:8px;align-items:flex-start;font-size:13.5px}
+.checkline input{margin-top:3px}
+.again{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;padding:11px 12px;border-radius:10px;background:var(--accent-weak);color:var(--accent-ink);margin-bottom:6px}
+.again > div{min-width:0;flex:1 1 230px}
+.again b{display:block;margin-bottom:1px}
+.again .small{display:block}
+.again.done{background:var(--ok-weak);color:var(--ok)}
+
+/* протокол */
+.steps{display:flex;flex-direction:column}
+.step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:14px 0;border-top:1px solid var(--border)}
+.step:first-child{border-top:0;padding-top:4px}
+.step-n{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--muted)}
+.step.done .step-n{background:var(--ok-weak);color:var(--ok)}
+.step h3{margin-bottom:8px}
+.checks{display:flex;flex-direction:column;gap:7px}
+.checks label{display:flex;gap:8px;align-items:flex-start;font-size:13.5px}
+.checks input{margin-top:3px}
+.grid3{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:10px}
+.mapwrap{display:grid;grid-template-columns:minmax(0,230px) minmax(0,1fr);gap:16px;align-items:start}
+.facemap{width:100%;max-width:230px;height:auto;border:1px dashed var(--border);border-radius:12px;background:var(--surface-2);cursor:crosshair;touch-action:manipulation}
+.pts{display:flex;flex-direction:column;gap:6px}
+.pt{display:grid;grid-template-columns:24px minmax(0,1fr) 96px 28px;gap:8px;align-items:center;font-size:13px}
+.pt .num-badge{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:11px;font-weight:700}
+.pt input{padding:5px 8px}
+.total{font-weight:700}
+.tpl{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tpl .tpl-h{width:100%;font-size:12px;color:var(--muted)}
+.tpl button{border:1px solid var(--border);background:var(--surface-2);border-radius:8px;padding:6px 9px;font-size:13px;line-height:1.35;text-align:left;max-width:100%;color:var(--text)}
+.tpl button b{color:var(--accent-ink)}
+.tpl button:hover,.tpl button.on{border-color:var(--accent);background:var(--accent-weak)}
+.finish{position:sticky;bottom:10px;margin-top:14px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow)}
+.finish .msg{font-size:13px;min-width:0;flex:1 1 260px}
+.finish .msg b{display:block;margin-bottom:2px}
+.donebar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:var(--ok-weak);color:var(--ok);font-weight:600;margin-top:14px}
+.donebar > span{display:flex;gap:8px;align-items:center;min-width:0;flex:1 1 260px}
+.ro-text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13.5px;background:var(--surface-2);border-radius:8px;padding:8px 10px}
+
+/* план лечения и рекомендации */
+.ptype{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end}
+.radio-seg{display:flex;flex-wrap:wrap;gap:6px}
+.radio-seg label{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:6px 11px;font-size:13px;cursor:pointer;background:var(--surface)}
+.radio-seg label:has(input:checked){border-color:var(--accent);background:var(--accent-weak);color:var(--accent-ink);font-weight:600}
+.radio-seg input{margin:0;accent-color:var(--accent)}
+.ptype .from{flex:0 1 170px}
+.prows{display:flex;flex-direction:column;gap:6px}
+.prow{display:grid;gap:6px;align-items:center}
+.prow.plan{grid-template-columns:minmax(0,150px) minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.2fr) 34px}
+.prow.dir{grid-template-columns:minmax(0,150px) minmax(0,1fr) 34px}
+.prow.cosm{grid-template-columns:minmax(0,1.15fr) minmax(0,1.35fr) 34px}
+.prow.head{font-size:12px;font-weight:600;color:var(--muted)}
+.prow .cell{display:flex;flex-direction:column;min-width:0}
+.prow .lbl{display:none}
+.prow input{padding:6px 8px}
+.prow .del{padding:6px 8px;font-size:18px;line-height:1}
+.prow .del-t{display:none}
+.sub-h{font-size:13.5px;font-weight:700;margin-top:4px}
+.linked{font-size:12.5px;color:var(--muted)}
+details.old summary{cursor:pointer;font-size:13px;color:var(--muted);font-weight:600}
+details.old .list{margin-top:8px}
+.list{display:flex;flex-direction:column;gap:8px;font-size:13px}
+.li{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;border-radius:9px;background:var(--surface-2)}
+.li > div{min-width:0}
+
+/* настройки */
+.settings{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:16px;align-items:start}
+.snav{display:flex;flex-direction:column;gap:4px;position:sticky;top:70px}
+.snav button{border:0;background:transparent;text-align:left;padding:9px 12px;border-radius:9px;font-weight:600;color:var(--muted)}
+.snav button[aria-current="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.sgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.sgrid .span2{grid-column:1/-1}
+.img-pick{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.img-pick .prev{width:120px;height:56px;border:1px dashed var(--border);border-radius:8px;display:grid;place-items:center;background:var(--surface-2);overflow:hidden;color:var(--muted);font-size:12px}
+.img-pick .prev img{max-width:100%;max-height:100%;object-fit:contain}
+.img-pick .prev.sq{width:64px;height:64px}
+.file{position:relative;overflow:hidden;display:inline-flex}
+.file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.proc{border:1px solid var(--border);border-radius:11px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.proc-grid{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));gap:10px}
+.flags{display:flex;flex-wrap:wrap;gap:6px 16px}
+.flags label{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+.danger-zone{border-color:var(--danger)}
+
+/* окно с бланком */
+.overlay{position:fixed;inset:0;z-index:50;background:rgba(14,16,28,.55);display:flex;align-items:flex-start;justify-content:center;padding:16px 12px;overflow:auto}
+.modal{background:var(--surface);border-radius:14px;width:min(860px,100%);box-shadow:var(--shadow);border:1px solid var(--border)}
+.modal:focus{outline:none}
+.modal-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border)}
+.modal-head > div:first-child{min-width:0}
+.modal-body{padding:16px;display:flex;flex-direction:column;gap:12px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tabs button{border:1px solid var(--border);background:var(--surface);padding:6px 11px;border-radius:999px;font-size:13px;font-weight:600;color:var(--muted)}
+.tabs button[aria-pressed="true"]{background:var(--accent-weak);border-color:var(--accent);color:var(--accent-ink)}
+.paper-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:6px}
+
+/* бумага: общие */
+.paper{background:var(--paper);color:var(--paper-ink);border:1px solid var(--paper-line);border-radius:6px;padding:26px 28px;font-family:"Helvetica Neue",Arial,sans-serif;font-size:13.5px;line-height:1.45;min-width:620px}
+.paper h4{margin:0 0 2px;font-size:16px}
+.paper .sub{font-size:12.5px;color:var(--paper-muted);margin-bottom:14px}
+.paper .lineitem{display:grid;grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:4px 12px;padding:4px 0;border-bottom:1px solid var(--paper-line)}
+.paper .filled{font-weight:600;overflow-wrap:anywhere}
+.paper .sec{margin-top:12px;break-inside:avoid}
+.paper .sec b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--paper-muted);margin-bottom:3px}
+.paper .sec p{white-space:pre-wrap;overflow-wrap:anywhere}
+.paper .sign{display:flex;justify-content:space-between;gap:20px;margin-top:26px;font-size:13px}
+.paper .rec-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding-bottom:10px;border-bottom:1px solid var(--paper-line);margin-bottom:12px}
+.paper .rec-top img{max-height:40px;max-width:150px;object-fit:contain}
+.paper .rec-map{display:grid;grid-template-columns:150px minmax(0,1fr);gap:14px;align-items:start}
+.paper .rec-map svg{width:150px;height:auto}
+.paper .rec-map ol{margin:0;padding-left:20px;columns:2;column-gap:24px;font-size:12.5px}
+.paper.memo ul{margin:8px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+.paper .foot-note{margin-top:16px;font-size:11.5px;color:var(--paper-muted)}
+
+/* бланки клиники: тонкие золотые линии, капитель, круглые отметки — как на их бумаге */
+.paper.blank{color:var(--blank-ink);font-size:13px;line-height:1.4;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.bl-head{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px 14px;align-items:center;padding-bottom:12px;border-bottom:1px solid var(--gold)}
+.bl-l{justify-self:start;min-width:0}
+.bl-l img{max-width:150px;max-height:48px;object-fit:contain;display:block}
+.bl-name{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--gold-ink)}
+.bl-title{font-size:20px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;text-align:center;white-space:nowrap}
+.bl-care{justify-self:end;display:flex;gap:8px;align-items:center;font-size:10.5px;line-height:1.35;color:var(--gold-ink);text-align:right}
+.bl-care img{width:48px;height:48px;object-fit:contain;flex:none}
+.bl-opts{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:14px;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+.bl-opt{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.bl-opt i{width:12px;height:12px;border:1px solid var(--gold);border-radius:50%;display:inline-block;position:relative;flex:none}
+.bl-opt.on i::after{content:"";position:absolute;inset:2px;border-radius:50%;background:var(--blank-ink)}
+.bl-from{margin-left:auto;display:inline-flex;gap:6px;align-items:baseline;white-space:nowrap}
+.bl-line{display:inline-block;min-width:110px;border-bottom:1px solid var(--gold);text-align:center;font-weight:600;text-transform:none;letter-spacing:0;font-size:13px;padding:0 4px}
+.bl-fio{display:flex;gap:10px;align-items:baseline;margin-top:14px;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em}
+.bl-fio > span:first-child{white-space:nowrap}
+.bl-fio .bl-line{flex:1;text-align:left;min-width:0}
+.bl-sec{margin-top:18px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.paper.blank table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px;table-layout:fixed}
+.paper.blank th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:center;color:var(--gold-ink);vertical-align:middle;padding:6px 4px;overflow-wrap:anywhere;border:1px solid var(--gold)}
+.paper.blank td{border:1px solid var(--gold);height:26px;padding:4px 6px;overflow-wrap:anywhere;vertical-align:top}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13px;max-width:min(560px,calc(100% - 32px));box-shadow:var(--shadow)}
+#print-root{display:none}
+
+@media (max-width:980px){
+  .proc-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .settings{grid-template-columns:minmax(0,1fr)}
+  .snav{position:static;flex-direction:row;flex-wrap:wrap}
+}
+@media (max-width:860px){
+  .split{grid-template-columns:minmax(0,1fr)}
+  .list-col{position:static}
+  .split.has-sel .list-col{display:none}
+  .split:not(.has-sel) .detail-col{display:none}
+  .back{display:inline-flex;align-self:flex-start}
+  .facts{grid-template-columns:minmax(0,1fr)}
+  .form-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .form-grid .span2{grid-column:1/-1}
+}
+@media (max-width:640px){
+  .prow.plan{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;padding:10px;border:1px solid var(--border);border-radius:10px}
+  .prow.plan .cell:nth-child(1){order:1}
+  .prow.plan .cell:nth-child(3){order:2}
+  .prow.plan .cell:nth-child(2){order:3;grid-column:1/-1}
+  .prow.plan .cell:nth-child(4){order:4;grid-column:1/-1}
+  .prow.plan .del{order:5}
+  .prow.dir,.prow.cosm{grid-template-columns:minmax(0,1fr);padding:10px;border:1px solid var(--border);border-radius:10px}
+  .prow.head{display:none}
+  .prow .lbl{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .prow .del{grid-column:1/-1;justify-self:end;font-size:13px;padding:4px 6px}
+  .prow .del-t{display:inline}
+  .grid3,.mapwrap,.sgrid,.form-grid,.proc-grid{grid-template-columns:minmax(0,1fr)}
+  .facemap{max-width:260px;justify-self:center}
+  .finish{position:static}
+  .kv{grid-template-columns:minmax(0,1fr)}
+  .who-am-i{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+  .visit,.btn,.tpl button,.hist-item{transition:border-color .15s,background-color .15s,box-shadow .15s}
+}
+/* поля страницы — внутри бумаги, а не у принтера: так браузер не печатает адрес сайта и дату по краям листа */
+@page{size:A4;margin:0}
+@media print{
+  html,body{background:#fff!important;color:#000}
+  body > *:not(#print-root){display:none!important}
+  #print-root{display:block!important}
+  #print-root .paper{border:0;border-radius:0;padding:12mm 13mm;min-width:0;box-shadow:none;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+  /* строки бланка растягиваются на лист А4: место под шапку отмерено по печати, с запасом под логотип */
+  #print-root .paper.blank.plan tbody td{height:min(12mm,calc(217mm / var(--rows,18)))}
+  #print-root .paper.blank.recs tbody td{height:min(12mm,calc(193mm / var(--rows,14)))}
+  #print-root .paper .sec,#print-root .paper .sign{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div id="app"><div class="gate"><div class="card"><p class="muted">Загрузка…</p><noscript><p>Для работы программы нужен включённый JavaScript.</p></noscript></div></div></div>
+<div id="overlay" class="overlay" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="datalists"></div>
+<div id="print-root"></div>
+<script>
+/* Kirenix Клиника — рабочая версия для одного специалиста.
+   Всё хранится в этом браузере (IndexedDB). Никаких запросов наружу: адрес сайта нужен только чтобы открыть программу.
+   Копии шифруются открытым ключом клиники (ECDH P-256 + AES-GCM); закрытый ключ зашифрован паролем клиники (PBKDF2). */
+(function(){
+'use strict';
+
+const APP = 'kirenix-klinika';
+const VERSION = '1.0';
+const DB_NAME = 'kirenix-klinika';
+const PIN_ITER = 150000;
+const PW_ITER = 310000;
+
+/* ---------- мелочи ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const pad = n => String(n).padStart(2, '0');
+const isoOf = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const todayIso = () => isoOf(new Date());
+const nowHM = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const parse = s => { const a = String(s).split('-').map(Number); return new Date(a[0], (a[1] || 1) - 1, a[2] || 1, 12); };
+const validIso = s => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !isNaN(parse(s));
+const fmtLong = s => validIso(s) ? parse(s).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', year: 'numeric'}) : '';
+const fmtShort = s => validIso(s) ? parse(s).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long'}) : '';
+const fmtDot = s => validIso(s) ? parse(s).toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit', year: 'numeric'}) : '';
+const fmtDM = s => validIso(s) ? parse(s).toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit'}) : '';
+const fmtDT = t => { const d = new Date(t); return isNaN(d) ? '' : d.toLocaleDateString('ru-RU', {day: '2-digit', month: '2-digit', year: 'numeric'}) + ' в ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const daysSince = t => Math.floor((Date.now() - new Date(t).getTime()) / 864e5);
+const age = b => { if (!validIso(b)) return null; const d = parse(b), t = new Date(); let a = t.getFullYear() - d.getFullYear(); const m = t.getMonth() - d.getMonth(); if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--; return a; };
+const ageWord = n => { if (n == null || n < 0) return ''; const m10 = n % 10, m100 = n % 100; if (m10 === 1 && m100 !== 11) return n + ' год'; if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return n + ' года'; return n + ' лет'; };
+const num = v => { const x = parseFloat(String(v).replace(',', '.')); return isFinite(x) ? x : 0; };
+const fmtNum = x => (Math.round(x * 100) / 100).toLocaleString('ru-RU', {maximumFractionDigits: 2});
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const norm = s => String(s == null ? '' : s).toLowerCase().replace(/ё/g, 'е').trim();
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+const clean = s => String(s || '').replace(/\s+/g, ' ').trim();
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const clone = o => JSON.parse(JSON.stringify(o));
+const narrow = () => window.matchMedia('(max-width:860px)').matches;
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => { const b = new Uint8Array(buf); let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => { const bin = atob(s); const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return b; };
+const rnd = n => crypto.getRandomValues(new Uint8Array(n));
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+const setPath = (o, p, v) => { const ks = p.split('.'); let a = o; for (let i = 0; i < ks.length - 1; i++){ if (a[ks[i]] == null) a[ks[i]] = {}; a = a[ks[i]]; } a[ks[ks.length - 1]] = v; };
+const fio = p => p ? [p.last, p.first, p.middle].filter(Boolean).join(' ') : '';
+const shortName = s => { const w = clean(s).split(' '); return w[0] ? w[0] + (w[1] ? ' ' + w[1][0] + '.' : '') + (w[2] ? ' ' + w[2][0] + '.' : '') : ''; };
+const dash = s => s && String(s).trim() ? esc(s) : '<span class="muted">—</span>';
+
+/* ---------- стартовые настройки (клиника меняет их сама) ---------- */
+const PLAN_TYPES = ['основной план', 'корректирующий план', 'коррекция плана лечения'];
+const MEMO_BOTOX = 'В день процедуры не массировать и не трогать зоны введения. Две недели без бани, сауны и солярия. Контрольный осмотр через 14 дней.';
+const MEMO_FILLER = 'Первые сутки не массировать зону коррекции и не спать лицом вниз. Две недели без бани и сауны. Контрольный осмотр через 14 дней.';
+const MEMO_BIO = 'В день процедуры не наносить декоративную косметику. Три дня без бани, сауны и бассейна. Следующая процедура курса через 2–3 недели.';
+const MEMO_PEEL = 'Каждый день наносить солнцезащитный крем SPF 50. Неделю не распаривать кожу. Не снимать отслаивающиеся корочки.';
+const proc = (id, name, drug, inject, unit, step, def, memo) => ({id, name, drug, inject, consent: drug, memoOn: !!memo, unit, step, def, drugName: '', memo: memo || ''});
+const DEF = {
+  clinic: {name: '', careTitle: 'Отдел заботы', phone: '', site: '', logo: '', qr: ''},
+  doctor: {fio: ''},
+  procs: [
+    proc('botox', 'Ботулинотерапия', true, true, 'ЕД', 1, 4, MEMO_BOTOX),
+    proc('filler', 'Контурная пластика', true, true, 'мл', 0.1, 0.2, MEMO_FILLER),
+    proc('biorev', 'Биоревитализация', true, true, 'мл', 0.1, 0.1, MEMO_BIO),
+    proc('meso', 'Мезотерапия', true, true, 'мл', 0.1, 0.1, MEMO_BIO),
+    proc('peel', 'Химический пилинг', true, false, '', 1, 0, MEMO_PEEL),
+    proc('consult', 'Консультация', false, false, '', 1, 0, ''),
+    proc('control', 'Контрольный осмотр', false, false, '', 1, 0, '')
+  ],
+  checks: [
+    'Анамнез и противопоказания проверены',
+    'Беременность и лактация исключены со слов пациента',
+    'Зона процедуры осмотрена',
+    'Пациент ознакомлен с возможными осложнениями'
+  ],
+  tpl: {
+    diag: [
+      'Жалобы на мимические морщины в области лба и межбровья.',
+      'Жалобы на морщины в области глаз («гусиные лапки»).',
+      'Жалобы на сухость и тусклый цвет лица.',
+      'Жалобы на снижение тонуса кожи и мелкие морщины.',
+      'Жалобы на недостаточный объём губ.',
+      'Жалобы на неровный тон кожи и следы постакне.',
+      'Кожа нормальная, тургор сохранён.',
+      'Кожа сухая, тургор снижен.',
+      'Кожа чувствительная, склонна к покраснению.',
+      'Мимические морщины лба и межбровья, выражены умеренно.',
+      'Носогубные складки выражены умеренно.',
+      'Мелкие морщины в периорбитальной зоне.',
+      'Пигментация в скуловой области.',
+      'Противопоказаний к процедуре не выявлено.',
+      'Результат прошлой процедуры сохраняется, осложнений не было.',
+      'Динамика положительная, жалоб нет.'
+    ],
+    memo: [
+      'В день процедуры не массировать и не трогать зоны введения.',
+      'Первые сутки не спать лицом вниз.',
+      'Сутки не наносить декоративную косметику.',
+      'Две недели без бани, сауны и солярия.',
+      'Три дня без бани, сауны и бассейна.',
+      'Каждый день наносить солнцезащитный крем SPF 50.',
+      'Неделю не распаривать кожу.',
+      'Не снимать отслаивающиеся корочки.',
+      'Сутки без алкоголя и интенсивных тренировок.',
+      'При отёке или покраснении дольше трёх дней — позвонить в клинику.',
+      'Контрольный осмотр через 14 дней.',
+      'Следующая процедура курса через 2–3 недели.'
+    ]
+  },
+  lists: {
+    services: ['Ботулинотерапия', 'Контурная пластика', 'Биоревитализация', 'Мезотерапия', 'Химический пилинг', 'Контрольный осмотр', 'Консультация'],
+    zones: ['лоб', 'межбровье', 'периорбитальная зона', 'скулы', 'носогубные складки', 'губы', 'подбородок', 'линия челюсти', 'лицо', 'шея', 'декольте', 'кисти рук'],
+    directions: ['Массаж лица', 'Уходовые процедуры', 'Чистка лица', 'Аппаратная косметология', 'Лазерная эпиляция', 'Массаж тела', 'Коррекция фигуры'],
+    cosmetics: [
+      {name: 'Мягкий очищающий гель', rule: 'утром и вечером на влажную кожу, смыть тёплой водой'},
+      {name: 'Увлажняющий крем с церамидами', rule: 'утром и вечером после умывания'},
+      {name: 'Сыворотка с ниацинамидом', rule: 'вечером на чистую кожу, 3–4 капли'},
+      {name: 'Успокаивающая сыворотка с пантенолом', rule: 'утром и вечером, первые 7 дней после процедуры'},
+      {name: 'Солнцезащитный крем SPF 50', rule: 'каждое утро, на улице обновлять каждые 2–3 часа'},
+      {name: 'Крем для кожи вокруг глаз', rule: 'утром и вечером, похлопывающими движениями'},
+      {name: 'Восстанавливающая маска', rule: '2 раза в неделю на 15 минут'}
+    ]
+  },
+  req: {check: true, diag: true, batch: true, expiry: true},
+  blank: {planRows: 18, dirRows: 6, cosmRows: 8},
+  security: {lockMin: 10},
+  backup: {auto: true, lastAt: null, lastDay: null}
+};
+function withDefaults(s){
+  const out = Object.assign(clone(DEF), s || {});
+  ['clinic', 'doctor', 'req', 'blank', 'security', 'backup', 'tpl', 'lists'].forEach(k => { out[k] = Object.assign(clone(DEF[k]), (s && s[k]) || {}); });
+  if (!Array.isArray(out.procs) || !out.procs.length) out.procs = clone(DEF.procs);
+  if (!Array.isArray(out.checks)) out.checks = clone(DEF.checks);
+  return out;
+}
+
+/* ---------- состояние ---------- */
+const S = {
+  fatal: null, fatalMsg: '',
+  settings: null, patients: new Map(), visits: new Map(), plans: new Map(),
+  locked: true,
+  ui: {view: 'home', pid: null, vid: null, edit: null, q: '', modal: null, stab: 'clinic', formErr: ''},
+  setup: {step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false},
+  lock: {mode: 'pin', err: '', busy: false, fails: 0, until: 0},
+  restore: {file: null, err: '', busy: false},
+  sec: {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false},
+  persist: null, usage: null, saveState: 'ok', installEvt: null
+};
+const pat = id => S.patients.get(id);
+const vis = id => S.visits.get(id);
+const visitsOf = pid => [...S.visits.values()].filter(v => v.pid === pid).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+const plansOf = pid => [...S.plans.values()].filter(p => p.pid === pid).sort((a, b) => b.createdAt - a.createdAt);
+const curPlan = pid => plansOf(pid)[0] || null;
+const isRepeatPatient = p => !!p.wasBefore || visitsOf(p.id).some(v => v.status === 'done');
+const procById = id => S.settings.procs.find(p => p.id === id);
+
+/* ---------- хранилище (IndexedDB) ---------- */
+const STORES = ['kv', 'patients', 'visits', 'plans'];
+const DB = {
+  db: null,
+  open(){
+    return new Promise((res, rej) => {
+      const r = indexedDB.open(DB_NAME, 1);
+      r.onupgradeneeded = () => {
+        const db = r.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', {keyPath: 'k'});
+        ['patients', 'visits', 'plans'].forEach(n => { if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, {keyPath: 'id'}); });
+      };
+      r.onsuccess = () => { DB.db = r.result; res(DB.db); };
+      r.onerror = () => rej(r.error || new Error('indexedDB'));
+      r.onblocked = () => rej(new Error('blocked'));
+    });
+  },
+  all(store){
+    return new Promise((res, rej) => { const r = DB.db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
+  },
+  get(store, key){
+    return new Promise((res, rej) => { const r = DB.db.transaction(store).objectStore(store).get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  },
+  write(ops){   // ops: [{op:'put'|'del'|'clear', store, value|key}] — одной транзакцией
+    const stores = [...new Set(ops.map(o => o.store))];
+    return new Promise((res, rej) => {
+      const t = DB.db.transaction(stores, 'readwrite');
+      t.oncomplete = () => res();
+      t.onerror = () => rej(t.error || new Error('write'));
+      t.onabort = () => rej(t.error || new Error('abort'));
+      ops.forEach(o => { const st = t.objectStore(o.store); if (o.op === 'put') st.put(o.value); else if (o.op === 'del') st.delete(o.key); else st.clear(); });
+    });
+  }
+};
+async function loadAll(){
+  const kv = await DB.get('kv', 'settings');
+  S.settings = kv && kv.v ? withDefaults(kv.v) : null;
+  S.patients = new Map((await DB.all('patients')).map(x => [x.id, x]));
+  S.visits = new Map((await DB.all('visits')).map(x => [x.id, x]));
+  S.plans = new Map((await DB.all('plans')).map(x => [x.id, x]));
+}
+
+/* сохранение: изменения копятся 0,4 с и пишутся одной транзакцией */
+const pending = new Map();
+let saveTimer = 0, saving = Promise.resolve(), inFlight = 0;
+function queue(store, value){
+  if (store !== 'kv') value.updatedAt = Date.now();
+  pending.set(store + ':' + (value.id || value.k), {op: 'put', store, value});
+  schedule();
+}
+function queueDel(store, key){ pending.set(store + ':' + key, {op: 'del', store, key}); schedule(); }
+function saveSettings(){ queue('kv', {k: 'settings', v: S.settings}); }
+function schedule(){ setSaveState('pending'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); }
+function flush(){
+  clearTimeout(saveTimer);
+  if (!pending.size) return saving;
+  const ops = [...pending.values()]; pending.clear(); inFlight++;
+  saving = saving.then(() => DB.write(ops)).then(() => { inFlight--; if (!pending.size && !inFlight) setSaveState('ok'); },
+    err => { inFlight--; console.error(err); ops.forEach(o => { const k = o.store + ':' + (o.op === 'put' ? (o.value.id || o.value.k) : o.key); if (!pending.has(k)) pending.set(k, o); }); setSaveState('err'); });
+  return saving;
+}
+function setSaveState(s){
+  const was = S.saveState; S.saveState = s;
+  const el = document.getElementById('save-state');
+  if (el){ el.className = 'save-state ' + s; el.innerHTML = s === 'ok' ? '<span class="dot"></span>Сохранено' : s === 'pending' ? 'Сохраняю…' : '<span class="dot"></span>Не сохранено'; }
+  if ((was === 'err') !== (s === 'err') && S.settings && !S.locked) render();
+}
+
+/* ---------- шифрование ---------- */
+async function pbkdf2(pass, salt, iter){
+  const key = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
+  return crypto.subtle.deriveBits({name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter}, key, 256);
+}
+async function pinHash(pin, saltB64, iter){ return b64(await pbkdf2(pin, unb64(saltB64), iter)); }
+async function pwKey(pw, salt, iter){ return crypto.subtle.importKey('raw', await pbkdf2(pw, salt, iter), 'AES-GCM', false, ['encrypt', 'decrypt']); }
+async function wrapPkcs8(pw, pkcs8){
+  const salt = rnd(16), iv = rnd(12);
+  const data = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, await pwKey(pw, salt, PW_ITER), pkcs8);
+  return {salt: b64(salt), iv: b64(iv), iter: PW_ITER, data: b64(data)};
+}
+async function unwrapPkcs8(pw, w){   // неверный пароль — исключение
+  return crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(w.iv)}, await pwKey(pw, unb64(w.salt), w.iter), unb64(w.data));
+}
+async function makeClinicKeys(pw){
+  const kp = await crypto.subtle.generateKey({name: 'ECDH', namedCurve: 'P-256'}, true, ['deriveKey', 'deriveBits']);
+  const pub = await crypto.subtle.exportKey('jwk', kp.publicKey);
+  const pkcs8 = await crypto.subtle.exportKey('pkcs8', kp.privateKey);
+  return {pub, wrap: await wrapPkcs8(pw, pkcs8)};
+}
+async function openClinicKey(pw, w){
+  const pkcs8 = await unwrapPkcs8(pw, w);
+  return crypto.subtle.importKey('pkcs8', pkcs8, {name: 'ECDH', namedCurve: 'P-256'}, false, ['deriveKey', 'deriveBits']);
+}
+async function sealFor(pubJwk, bytes){
+  const pub = await crypto.subtle.importKey('jwk', pubJwk, {name: 'ECDH', namedCurve: 'P-256'}, false, []);
+  const eph = await crypto.subtle.generateKey({name: 'ECDH', namedCurve: 'P-256'}, true, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({name: 'ECDH', public: pub}, eph.privateKey, {name: 'AES-GCM', length: 256}, false, ['encrypt']);
+  const iv = rnd(12);
+  const data = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, key, bytes);
+  return {epk: await crypto.subtle.exportKey('jwk', eph.publicKey), iv: b64(iv), data: b64(data)};
+}
+async function openSealed(priv, box){
+  const epk = await crypto.subtle.importKey('jwk', box.epk, {name: 'ECDH', namedCurve: 'P-256'}, false, []);
+  const key = await crypto.subtle.deriveKey({name: 'ECDH', public: epk}, priv, {name: 'AES-GCM', length: 256}, false, ['decrypt']);
+  return crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(box.iv)}, key, unb64(box.data));
+}
+function weakPin(p){ return /^(\d)\1+$/.test(p) || '01234567890'.indexOf(p) >= 0 || '09876543210'.indexOf(p) >= 0; }
+
+/* ---------- копии ---------- */
+function download(name, text){
+  const url = URL.createObjectURL(new Blob([text], {type: 'application/json'}));
+  const a = document.createElement('a'); a.href = url; a.download = name; a.style.display = 'none';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
+}
+async function makeBackup(auto){
+  await flush();
+  const st = S.settings;
+  const createdAt = new Date().toISOString(), day = todayIso();
+  const stCopy = clone(st); stCopy.backup.lastAt = createdAt; stCopy.backup.lastDay = day;
+  const payload = {app: APP, v: 1, createdAt, appVersion: VERSION, settings: stCopy, patients: [...S.patients.values()], visits: [...S.visits.values()], plans: [...S.plans.values()]};
+  const box = await sealFor(st.security.pub, enc.encode(JSON.stringify(payload)));
+  const file = {app: APP, kind: 'backup', v: 1, createdAt, clinic: st.clinic.name,
+    counts: {patients: payload.patients.length, visits: payload.visits.length, plans: payload.plans.length},
+    note: 'Зашифрованная копия Kirenix Клиники. Открыть можно только в программе, с паролем клиники.',
+    wrap: st.security.wrap, box};
+  const name = 'kirenix-klinika-kopiya-' + day + '-' + nowHM().replace(':', '') + pad(new Date().getSeconds()) + '.json';
+  download(name, JSON.stringify(file));
+  st.backup.lastAt = createdAt; st.backup.lastDay = day;
+  saveSettings(); flush();
+  toast((auto ? 'Копия за сегодня сохранена' : 'Копия сохранена') + ' в папку «Загрузки»: ' + name, 6500);
+  if (!S.locked && S.settings) render();
+}
+async function autoBackup(){
+  const b = S.settings.backup;
+  if (!b.auto || !(S.patients.size || S.visits.size) || b.lastDay === todayIso()) return;
+  try { await makeBackup(true); } catch (e){ console.error(e); toast('Не удалось сохранить копию за сегодня. Сохраните её вручную в настройках.', 7000); }
+}
+const userErr = m => Object.assign(new Error(m), {user: true});
+async function readBackup(file, pw){
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch (e){ throw userErr('Файл повреждён или это не копия Kirenix Клиники.'); }
+  if (!obj || obj.app !== APP || obj.kind !== 'backup' || !obj.wrap || !obj.box) throw userErr('Это не файл копии Kirenix Клиники.');
+  let priv;
+  try { priv = await openClinicKey(pw, obj.wrap); } catch (e){ throw userErr('Неверный пароль клиники для этой копии.'); }
+  let data;
+  try { data = JSON.parse(dec.decode(await openSealed(priv, obj.box))); } catch (e){ throw userErr('Копия повреждена — открыть её не получилось.'); }
+  if (!data || data.app !== APP || !data.settings || !Array.isArray(data.patients) || !Array.isArray(data.visits) || !Array.isArray(data.plans)) throw userErr('В копии нет нужных данных.');
+  return sanitizeData(data);
+}
+/* Копию проверяем по полям, прежде чем положить в программу: в разметку попадает только то, что должно там быть. */
+const ID_RE = /^[\w-]{1,64}$/;
+const str = v => (v == null ? '' : String(v));
+function imgSrc(s){ return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s || '') ? s : ''; }
+function sanitizeData(d){
+  const st = withDefaults(d.settings);
+  st.clinic.logo = imgSrc(st.clinic.logo); st.clinic.qr = imgSrc(st.clinic.qr);
+  st.procs = st.procs.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {step: num(p.step) || 1, def: num(p.def)}));
+  if (!st.procs.length) st.procs = clone(DEF.procs);
+  st.security.lockMin = [5, 10, 15, 30, 60].indexOf(+st.security.lockMin) >= 0 ? +st.security.lockMin : 10;
+  ['planRows', 'dirRows', 'cosmRows'].forEach(k => { st.blank[k] = Math.max(1, Math.min(26, Math.round(num(st.blank[k])) || DEF.blank[k])); });
+  if (!st.security.pinHash || !st.security.pinSalt || !st.security.wrap || !st.security.pub) throw userErr('В копии нет ключей программы.');
+  const patients = d.patients.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {
+    last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж'}));
+  const pids = new Set(patients.map(p => p.id));
+  const visits = d.visits.filter(v => v && ID_RE.test(v.id) && pids.has(v.pid) && validIso(v.date)).map(v => Object.assign(v, {
+    time: /^\d{2}:\d{2}$/.test(v.time) ? v.time : '00:00', kind: v.kind === 'повторный' ? 'повторный' : 'первичный', status: v.status === 'done' ? 'done' : 'draft',
+    procId: str(v.procId), procName: str(v.procName), unit: str(v.unit), step: num(v.step) || 1, def: num(v.def), doctor: str(v.doctor),
+    diag: str(v.diag), drug: str(v.drug), batch: str(v.batch), expiry: str(v.expiry), memo: str(v.memo), consent: !!v.consent,
+    flags: Object.assign({drug: false, inject: false, consent: false, memo: false}, v.flags),
+    checklist: Array.isArray(v.checklist) ? v.checklist.map(str) : [], checked: Array.isArray(v.checked) ? v.checked.map(Boolean) : [],
+    points: Array.isArray(v.points) ? v.points.map(q => ({x: Math.max(0, Math.min(200, num(q && q.x))), y: Math.max(0, Math.min(240, num(q && q.y))), u: str(q && q.u)})) : [],
+    copiedFrom: validIso(v.copiedFrom) ? v.copiedFrom : null, log: Array.isArray(v.log) ? v.log.filter(l => l && typeof l.what === 'string') : []}));
+  const plans = d.plans.filter(p => p && ID_RE.test(p.id) && pids.has(p.pid)).map(p => Object.assign(p, {
+    type: [0, 1, 2].indexOf(+p.type) >= 0 ? +p.type : 0, from: validIso(p.from) ? p.from : '', createdAt: num(p.createdAt),
+    rows: (Array.isArray(p.rows) ? p.rows : []).map(r => ({date: validIso(r && r.date) ? r.date : '', svc: str(r && r.svc), dose: str(r && r.dose), zone: str(r && r.zone)})),
+    dirs: (Array.isArray(p.dirs) ? p.dirs : []).map(r => ({date: validIso(r && r.date) ? r.date : '', dir: str(r && r.dir)})),
+    cosm: (Array.isArray(p.cosm) ? p.cosm : []).map(r => ({name: str(r && r.name), rule: str(r && r.rule)}))}));
+  return Object.assign(d, {settings: st, patients, visits, plans});
+}
+async function replaceAll(data){
+  const ops = STORES.map(s => ({op: 'clear', store: s}));
+  ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: data.settings}});
+  data.patients.forEach(x => ops.push({op: 'put', store: 'patients', value: x}));
+  data.visits.forEach(x => ops.push({op: 'put', store: 'visits', value: x}));
+  data.plans.forEach(x => ops.push({op: 'put', store: 'plans', value: x}));
+  pending.clear();
+  await saving.catch(() => {});
+  await DB.write(ops);
+  await loadAll();
+}
+async function doRestore(where){
+  const R = S.restore, pwEl = $('#rs-pw'), pw = pwEl ? pwEl.value : '';
+  if (!R.file){ R.err = 'Выберите файл копии.'; return render(); }
+  if (!pw){ R.err = 'Введите пароль клиники.'; return render(); }
+  R.busy = true; R.err = ''; render();
+  try {
+    const data = await readBackup(R.file, pw);
+    const has = S.patients.size || S.visits.size;
+    const ok = confirm('Восстановить копию от ' + fmtDT(data.createdAt) + '?\n\nВ копии пациентов: ' + data.patients.length + ', визитов: ' + data.visits.length + '.' +
+      (has ? '\n\nВсе данные на этом компьютере заменятся данными из копии. Перед этим программа сохранит копию текущих данных в «Загрузки».' : ''));
+    if (!ok){ R.busy = false; return render(); }
+    if (has && S.settings) await makeBackup(false);
+    await replaceAll(data);
+    renderDatalists();
+    S.restore = {file: null, err: '', busy: false};
+    S.setup = freshSetup();
+    S.ui = freshUi();
+    S.locked = true; S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
+    render(); toast('Копия восстановлена. Введите PIN специалиста — тот, что был в копии.', 7000);
+  } catch (e){
+    if (!e.user) console.error(e); R.busy = false; R.err = e.message || 'Не удалось восстановить копию.'; render();
+  }
+}
+const freshSetup = () => ({step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false});
+const freshUi = () => ({view: 'home', pid: null, vid: null, edit: null, q: '', modal: null, stab: 'clinic', formErr: ''});
+
+/* ---------- значки ---------- */
+const ICON_LOCK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
+const ICON_CHECK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const ICON_PRINT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg>';
+const ICON_COPY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>';
+
+/* ---------- общие кусочки разметки ---------- */
+const field = (label, input, req, cls) => '<label class="field' + (cls ? ' ' + cls : '') + '"><span' + (req ? ' class="req"' : '') + '>' + label + '</span>' + input + '</label>';
+const errBox = m => m ? '<p class="err-text" role="alert">' + esc(m) + '</p>' : '';
+const okBox = m => m ? '<p class="note" role="status" style="color:var(--ok);font-weight:600">' + esc(m) + '</p>' : '';
+const brandBox = sub => '<div class="gate-brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(sub) + '</span></div></div>';
+
+/* ---------- отрисовка ---------- */
+const app = document.getElementById('app');
+function render(){
+  resetTpl();
+  let html;
+  if (S.fatal) html = renderFatal();
+  else if (!S.settings) html = renderSetup();
+  else if (S.locked) html = renderLock();
+  else html = renderShell();
+  app.innerHTML = html;
+  renderModal();
+  setSaveState(S.saveState === 'err' ? 'err' : (pending.size || inFlight) ? 'pending' : 'ok');
+  const af = app.querySelector('[data-autofocus]');
+  if (af && !af.disabled && document.activeElement !== af){ try { af.focus({preventScroll: true}); } catch (e){} }
+}
+
+function renderFatal(){
+  const msg = {
+    browser: ['Этот браузер не подходит', 'Откройте программу в Google Chrome, Яндекс Браузере или Microsoft Edge последней версии.'],
+    tab: ['Программа уже открыта', 'Kirenix Клиника уже открыта в другой вкладке или окне этого браузера. Перейдите туда. Если вы её закрыли — обновите эту страницу.'],
+    db: ['Браузер не даёт сохранять данные', 'Проверьте, что программа открыта не в режиме инкогнито и на компьютере есть свободное место, затем обновите страницу. Если не помогло — напишите в поддержку: Telegram @aikiren.']
+  }[S.fatal] || ['Что-то пошло не так', 'Обновите страницу.'];
+  return '<div class="gate"><div class="card stack fatal">' + brandBox('') + '<h2>' + msg[0] + '</h2><p>' + msg[1] + '</p>' +
+    (S.fatalMsg ? '<p class="note mono">' + esc(S.fatalMsg) + '</p>' : '') +
+    '<button type="button" class="btn btn-primary" data-act="reload">Обновить страницу</button></div></div>';
+}
+
+/* первая настройка */
+function renderSetup(){
+  const s = S.setup;
+  if (s.restore) return '<div class="gate"><div class="card stack">' + brandBox('Перенос с другого компьютера') + restoreForm('setup') + '</div></div>';
+  const dots = '<div class="steps-dots" aria-hidden="true">' + [1, 2, 3].map(i => '<span class="' + (i <= s.step ? 'on' : '') + '"></span>').join('') + '</div>';
+  let body;
+  if (s.step === 1){
+    body = '<h2>Клиника и специалист</h2><p class="note">Название и ФИО печатаются на бланках. Поменять можно потом в настройках.</p>' +
+      field('Название клиники', '<input type="text" id="su-name" data-sf="name" value="' + esc(s.name) + '" autocomplete="off" data-autofocus>', true) +
+      field('ФИО специалиста', '<input type="text" id="su-doctor" data-sf="doctor" value="' + esc(s.doctor) + '" autocomplete="off" placeholder="Например, Иванова Анна Сергеевна">', true) +
+      errBox(s.err) +
+      '<button type="button" class="btn btn-primary wide" data-act="su-next">Дальше</button>' +
+      '<p class="note">Переносите программу с другого компьютера? <button type="button" class="linkish" data-act="su-restore">Восстановить из копии</button></p>';
+  } else if (s.step === 2){
+    body = '<h2>PIN специалиста</h2><p class="note">4–8 цифр. Программа спросит PIN при входе и после 10 минут без действий — чтобы карты не открыл посторонний.</p>' +
+      field('PIN', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="su-pin" data-sf="pin" value="' + esc(s.pin) + '" autocomplete="new-password" data-autofocus>', true) +
+      field('PIN ещё раз', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="su-pin2" data-sf="pin2" value="' + esc(s.pin2) + '" autocomplete="new-password">', true) +
+      errBox(s.err) +
+      '<div class="row"><button type="button" class="btn" data-act="su-back">Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="su-next">Дальше</button></div>';
+  } else {
+    body = '<h2>Пароль клиники</h2><p class="note">Нужен, чтобы открыть копию данных и сбросить забытый PIN. Его должен знать руководитель или администратор клиники. Запишите и храните отдельно: Kirenix этот пароль не знает и восстановить его не сможет.</p>' +
+      field('Пароль клиники, не короче 8 знаков', '<input type="password" id="su-pw" data-sf="pw" value="' + esc(s.pw) + '" autocomplete="new-password" data-autofocus' + (s.busy ? ' disabled' : '') + '>', true) +
+      field('Пароль ещё раз', '<input type="password" id="su-pw2" data-sf="pw2" value="' + esc(s.pw2) + '" autocomplete="new-password"' + (s.busy ? ' disabled' : '') + '>', true) +
+      errBox(s.err) +
+      '<div class="row"><button type="button" class="btn" data-act="su-back"' + (s.busy ? ' disabled' : '') + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="su-finish"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'Настраиваю…' : 'Готово') + '</button></div>';
+  }
+  return '<div class="gate"><div class="card stack">' + brandBox('Настройка на этом компьютере') + dots + (IS_SAFARI ? SAFARI_WARN : '') + body +
+    '<p class="note">Данные пациентов хранятся только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p></div></div>';
+}
+function restoreForm(where){
+  const R = S.restore;
+  return '<div class="stack"><h2' + (where === 'settings' ? ' style="font-size:15px"' : '') + '>Восстановить из копии</h2>' +
+    '<p class="note">Файл копии называется kirenix-klinika-kopiya-…json и лежит в папке «Загрузки» или на флешке. Нужен пароль клиники.</p>' +
+    field('Файл копии', '<span class="row"><span class="btn file small">Выбрать файл<input type="file" id="rs-file" data-rs="file" accept=".json,application/json"' + (R.busy ? ' disabled' : '') + '></span><span class="small">' + (R.file ? esc(R.file.name) : 'файл не выбран') + '</span></span>', true) +
+    field('Пароль клиники', '<input type="password" id="rs-pw" autocomplete="off"' + (R.busy ? ' disabled' : '') + '>', true) +
+    errBox(R.err) +
+    '<div class="row">' + (where === 'setup' ? '<button type="button" class="btn" data-act="su-restore-cancel"' + (R.busy ? ' disabled' : '') + '>Назад</button>' : '') +
+      '<button type="button" class="btn' + (where === 'setup' ? ' btn-primary' : '') + '" data-act="restore" data-where="' + where + '"' + (R.busy ? ' disabled' : '') + '>' + (R.busy ? 'Восстанавливаю…' : 'Восстановить') + '</button></div></div>';
+}
+
+/* экран входа */
+function renderLock(){
+  const L = S.lock, st = S.settings;
+  let body;
+  if (L.mode === 'forgot'){
+    body = '<h2>Сброс PIN</h2><p class="note">Введите пароль клиники и придумайте новый PIN.</p>' +
+      field('Пароль клиники', '<input type="password" id="fg-pw" autocomplete="off" data-autofocus' + (L.busy ? ' disabled' : '') + '>', true) +
+      field('Новый PIN, 4–8 цифр', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="fg-pin" autocomplete="new-password"' + (L.busy ? ' disabled' : '') + '>', true) +
+      field('Новый PIN ещё раз', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="fg-pin2" autocomplete="new-password"' + (L.busy ? ' disabled' : '') + '>', true) +
+      errBox(L.err) +
+      '<div class="row"><button type="button" class="btn" data-act="lk-cancel"' + (L.busy ? ' disabled' : '') + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="lk-reset"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? 'Проверяю…' : 'Сменить PIN и войти') + '</button></div>';
+  } else {
+    body = '<h2>Введите PIN</h2>' +
+      '<form data-form="unlock" class="stack" autocomplete="off"><input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="lk-pin" aria-label="PIN" data-autofocus' + (L.busy ? ' disabled' : '') + '>' +
+      errBox(L.err) +
+      '<button type="submit" class="btn btn-primary wide"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></form>' +
+      '<p class="note">Специалист: ' + esc(st.doctor.fio) + '</p>' +
+      '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>';
+  }
+  return '<div class="gate"><div class="card stack">' + brandBox(st.clinic.name) + body + '</div></div>';
+}
+
+/* рабочий экран */
+function renderShell(){
+  const st = S.settings;
+  const head = '<header class="top"><div class="wrap"><div class="brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(st.clinic.name) + '</span></div></div>' +
+    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + esc(st.doctor.fio) + '</span>' +
+    (S.ui.view === 'settings' ? '<button type="button" class="btn small" data-act="nav-home">← К пациентам</button>' : '<button type="button" class="btn small" data-act="nav-settings">Настройки</button>') +
+    '<button type="button" class="btn small" data-act="lock">' + ICON_LOCK + 'Заблокировать</button></div></div></header>';
+  const view = S.ui.view === 'settings' ? renderSettings() : renderHome();
+  return head + '<main><div class="wrap">' + banners() + view + '</div></main>' +
+    '<footer class="foot"><div class="wrap">Kirenix Клиника · версия ' + VERSION + ' · данные пациентов хранятся только на этом компьютере и никуда не передаются · поддержка: Telegram @aikiren</div></footer>';
+}
+/* Safari стирает данные сайта, если его не открывать 7 дней, — для карт пациентов это недопустимо */
+const IS_SAFARI = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS|EdgiOS|YaBrowser/.test(navigator.userAgent);
+const SAFARI_WARN = '<div class="banner bad" role="alert"><span><b>Откройте программу в Google Chrome.</b> Safari стирает данные сайта, если его не открывать 7 дней, — карты пациентов могут пропасть.</span></div>';
+function banners(){
+  let out = IS_SAFARI ? SAFARI_WARN : '';
+  if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место. Не закрывайте программу.</span><button type="button" class="btn small" data-act="retry-save">Сохранить ещё раз</button></div>';
+  const b = S.settings.backup;
+  if (S.patients.size){
+    const d = b.lastAt ? daysSince(b.lastAt) : null;
+    if (d === null || d >= 3) out += '<div class="banner"><span><b>' + (d === null ? 'Копия данных ещё не сохранялась.' : 'Копия данных не сохранялась ' + d + ' дн.') + '</b> Она спасёт карты, если с браузером или компьютером что-то случится.</span><button type="button" class="btn small" data-act="backup">Сохранить копию</button></div>';
+  }
+  return out;
+}
+
+/* главный экран: слева поиск и списки, справа карточка */
+function renderHome(){
+  const u = S.ui;
+  const detail = u.edit ? renderPatientForm() : u.vid ? renderVisit(vis(u.vid)) : u.pid ? renderPatient(pat(u.pid)) : renderWelcome();
+  const has = !!(u.edit || u.vid || u.pid);
+  return '<div class="split' + (has ? ' has-sel' : '') + '"><div class="list-col stack">' +
+      '<label class="field"><span>Найти пациента: фамилия или № карты</span><input type="search" id="q" data-f="q" value="' + esc(u.q) + '" placeholder="Например, Иванова" autocomplete="off" enterkeyhint="search"></label>' +
+      '<button type="button" class="btn btn-primary" data-act="new-patient">+ Новый пациент</button>' +
+      '<div id="side-list" class="stack">' + renderSideList() + '</div>' +
+    '</div><div class="detail-col">' + detail + '</div></div>';
+}
+function patientItem(p){
+  const last = visitsOf(p.id).find(v => v.status === 'done');
+  const sub = [p.birth ? fmtDot(p.birth) : '', p.card ? 'карта ' + esc(p.card) : '', last ? 'был ' + fmtShort(last.date) : 'визитов ещё не было'].filter(Boolean).join(' · ');
+  return '<button type="button" class="visit hit" data-act="open-patient" data-pid="' + p.id + '" aria-current="' + (p.id === S.ui.pid && !S.ui.vid) + '"><span class="n">' + esc(fio(p)) + '</span><span class="meta"><span class="small muted">' + sub + '</span></span></button>';
+}
+function visitItem(v, withDate){
+  const p = pat(v.pid); if (!p) return '';
+  return '<button type="button" class="visit" data-act="open-visit" data-vid="' + v.id + '" aria-current="' + (v.id === S.ui.vid) + '"><span class="t">' + (withDate ? fmtDM(v.date) : v.time) + '</span><span class="n">' + esc(fio(p)) + '</span>' +
+    '<span class="meta"><span class="small muted">' + esc(v.procName) + '</span>' + statusChip(v) + '</span></button>';
+}
+function renderSideList(){
+  const q = clean(S.ui.q);
+  if (q.length >= 2 || (/\d/.test(q) && q.length >= 1)){
+    const parts = norm(q).split(' ');
+    const digits = /\d/.test(q);
+    const hits = [...S.patients.values()].filter(p => digits ? norm(p.card).indexOf(norm(q)) >= 0 :
+      norm(p.last).startsWith(parts[0]) && (!parts[1] || norm(p.first).startsWith(parts[1])) && (!parts[2] || norm(p.middle).startsWith(parts[2])))
+      .sort((a, b) => fio(a).localeCompare(fio(b), 'ru')).slice(0, 40);
+    return '<p class="small muted">' + (hits.length ? 'Найдено: ' + hits.length + ' · по алфавиту' : 'Никого не нашли. Проверьте фамилию или добавьте нового пациента.') + '</p>' +
+      (hits.length ? '<div class="visit-list">' + hits.map(patientItem).join('') + '</div>' : '');
+  }
+  const t = todayIso();
+  let out = q.length === 1 ? '<p class="note">Введите ещё одну букву фамилии</p>' : '';
+  const today = [...S.visits.values()].filter(v => v.date === t).sort((a, b) => a.time.localeCompare(b.time));
+  out += '<div class="side-sec"><h3>Сегодня</h3>' + (today.length ? '<div class="visit-list">' + today.map(v => visitItem(v)).join('') + '</div>' : '<p class="note">Сегодня приёмов ещё не было.</p>') + '</div>';
+  const open = [...S.visits.values()].filter(v => v.status !== 'done' && v.date < t).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  if (open.length) out += '<div class="side-sec"><h3>Не завершены</h3><div class="visit-list">' + open.map(v => visitItem(v, true)).join('') + '</div></div>';
+  const recent = [...S.patients.values()].filter(p => p.openedAt).sort((a, b) => b.openedAt - a.openedAt).slice(0, 8);
+  if (recent.length) out += '<div class="side-sec"><h3>Недавно открытые</h3><div class="visit-list">' + recent.map(patientItem).join('') + '</div></div>';
+  return out;
+}
+function renderWelcome(){
+  const pc = S.patients.size, vc = [...S.visits.values()].filter(v => v.status === 'done').length;
+  return '<div class="card stack welcome"><div><h2>Здравствуйте!</h2><p class="muted">' + (pc ? 'Найдите пациента по фамилии слева или добавьте нового.' : 'Пациентов пока нет. Начните с кнопки «Новый пациент».') + '</p></div>' +
+    '<div class="stats"><span class="chip neutral">Пациентов: ' + pc + '</span><span class="chip neutral">Завершённых визитов: ' + vc + '</span></div>' +
+    '<details' + (pc ? '' : ' open') + '><summary class="small" style="cursor:pointer;font-weight:600">Как работать</summary><ol>' +
+      '<li>«Новый пациент» — ФИО, дата рождения и анамнез. Телефон и паспорт сюда не вносятся: они остаются в системе записи клиники.</li>' +
+      '<li>В карте пациента выберите процедуру и нажмите «Начать приём».</li>' +
+      '<li>Заполните протокол по шагам. Если пациент уже был, нажмите «Как в прошлый раз» — останется вписать серию с новой упаковки.</li>' +
+      '<li>Визит закрывается, только когда заполнено всё обязательное. После этого можно распечатать запись о приёме для бумажной карты и памятку для пациента.</li>' +
+      '<li>План лечения и рекомендации заполняются в карте и печатаются на ваших бланках кнопкой «Бланк для печати».</li>' +
+      '<li>Раз в день программа сама сохраняет зашифрованную копию в папку «Загрузки».</li>' +
+    '</ol></details></div>';
+}
+
+/* пациент: новый и изменение */
+function renderPatientForm(){
+  const isNew = S.ui.edit === 'new';
+  const p = isNew ? {sex: 'ж'} : (pat(S.ui.edit) || {});
+  const txt = (id, val, extra) => '<input type="text" id="' + id + '" value="' + esc(val || '') + '" autocomplete="off"' + (extra || '') + '>';
+  const area = (id, val) => '<textarea id="' + id + '" rows="2" style="min-height:58px">' + esc(val || '') + '</textarea>';
+  const canDel = !isNew && !visitsOf(p.id).some(v => v.status === 'done' || (v.log || []).some(l => /Завершён/.test(l.what)));
+  return '<div class="stack"><button type="button" class="btn back" data-act="pf-cancel">← Назад</button><div class="card stack"><h2>' + (isNew ? 'Новый пациент' : 'Изменить данные пациента') + '</h2>' +
+    '<div class="lock">' + ICON_LOCK + '<span>Только медицинская часть. Телефон, паспорт и адрес сюда не вносятся — они остаются в системе записи клиники.</span></div>' +
+    '<div class="form-grid">' +
+      field('Фамилия', txt('pf-last', p.last, ' data-autofocus'), true) +
+      field('Имя', txt('pf-first', p.first), true) +
+      field('Отчество', txt('pf-middle', p.middle)) +
+      field('Дата рождения', '<input type="date" id="pf-birth" value="' + esc(p.birth || '') + '" min="1900-01-01" max="' + todayIso() + '">', true) +
+      field('Пол', '<select id="pf-sex"><option value="ж"' + (p.sex !== 'м' ? ' selected' : '') + '>женский</option><option value="м"' + (p.sex === 'м' ? ' selected' : '') + '>мужской</option></select>') +
+      field('№ медицинской карты', txt('pf-card', p.card, ' placeholder="номер бумажной карты, если есть"')) +
+      '<label class="checkline span3"><input type="checkbox" id="pf-before"' + (p.wasBefore ? ' checked' : '') + '><span>Пациент уже бывал в клинике до этой программы — тогда приём считается повторным</span></label>' +
+      field('Аллергия', area('pf-allergy', p.allergy), false, 'span3') +
+      field('Хронические заболевания', area('pf-chronic', p.chronic), false, 'span3') +
+      field('Принимает препараты', area('pf-meds', p.meds), false, 'span3') +
+      field('Заметки', area('pf-note', p.note), false, 'span3') +
+    '</div>' + errBox(S.ui.formErr) +
+    '<div class="row end">' + (canDel ? '<button type="button" class="btn btn-ghost btn-danger" data-act="pf-delete" style="margin-right:auto">Удалить пациента</button>' : '') +
+      '<button type="button" class="btn" data-act="pf-cancel">Отмена</button><button type="button" class="btn btn-primary" data-act="pf-save">' + (isNew ? 'Добавить пациента' : 'Сохранить') + '</button></div></div></div>';
+}
+function savePatientForm(){
+  const isNew = S.ui.edit === 'new';
+  const val = id => ($('#' + id) || {}).value || '';
+  const last = cap(clean(val('pf-last'))), first = cap(clean(val('pf-first'))), middle = cap(clean(val('pf-middle'))), birth = val('pf-birth');
+  const bad = [];
+  if (!last) bad.push('pf-last');
+  if (!first) bad.push('pf-first');
+  if (!validIso(birth) || birth > todayIso() || birth < '1900-01-01') bad.push('pf-birth');
+  document.querySelectorAll('.form-grid [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+  if (bad.length){
+    bad.forEach(id => { const el = $('#' + id); if (el) el.setAttribute('aria-invalid', 'true'); });
+    const box = document.querySelector('.detail-col .err-text') || null;
+    S.ui.formErr = bad.indexOf('pf-birth') >= 0 && bad.length === 1 ? 'Проверьте дату рождения.' : 'Заполните фамилию, имя и дату рождения.';
+    if (box) box.textContent = S.ui.formErr; else { const row = document.querySelector('.detail-col .row.end'); if (row) row.insertAdjacentHTML('beforebegin', errBox(S.ui.formErr)); }
+    const el = $('#' + bad[0]); if (el) el.focus();
+    return;
+  }
+  if (isNew){
+    const twin = [...S.patients.values()].find(x => norm(x.last) === norm(last) && norm(x.first) === norm(first) && x.birth === birth);
+    if (twin && !confirm('Пациент «' + fio(twin) + '» с такой же датой рождения уже есть. Всё равно добавить ещё одного?')) return;
+  }
+  const p = isNew ? {id: uid(), createdAt: Date.now()} : pat(S.ui.edit);
+  if (!p) return;
+  Object.assign(p, {last, first, middle, birth, sex: val('pf-sex') === 'м' ? 'м' : 'ж', card: clean(val('pf-card')), wasBefore: !!($('#pf-before') || {}).checked,
+    allergy: val('pf-allergy').trim(), chronic: val('pf-chronic').trim(), meds: val('pf-meds').trim(), note: val('pf-note').trim(), openedAt: Date.now()});
+  S.patients.set(p.id, p); queue('patients', p);
+  S.ui.edit = null; S.ui.formErr = ''; S.ui.pid = p.id; S.ui.vid = null;
+  render(); window.scrollTo(0, 0);
+  toast(isNew ? 'Пациент добавлен.' : 'Данные пациента сохранены.');
+}
+
+/* карта пациента */
+function visitSummary(v){
+  const bits = [];
+  if (v.flags.drug && v.drug) bits.push(esc(v.drug) + (v.batch ? ', серия <span class="mono">' + esc(v.batch) + '</span>' : ''));
+  if (v.flags.inject && v.points.length) bits.push(fmtNum(total(v)) + ' ' + esc(v.unit));
+  return bits.join(' · ');
+}
+function histHtml(vs, skipId){
+  const list = vs.filter(v => v.id !== skipId);
+  if (!list.length) return '<p class="muted small">Визитов в программе ещё не было.</p>';
+  return list.map(v => {
+    const sum = visitSummary(v);
+    return '<button type="button" class="hist-item" data-act="open-visit" data-vid="' + v.id + '"><b>' + fmtLong(v.date) + '</b> · ' + esc(v.procName) + ' ' + statusChip(v) +
+      (sum ? '<span class="said muted">' + sum + '</span>' : '') +
+      (v.diag ? '<span class="said">' + esc(v.diag.length > 160 ? v.diag.slice(0, 157) + '…' : v.diag) + '</span>' : '') + '</button>';
+  }).join('');
+}
+function patientHead(p, skipVid, extraRight){
+  const line = [ageWord(age(p.birth)), p.birth ? 'д. р. ' + fmtDot(p.birth) : '', p.card ? 'карта № ' + esc(p.card) : ''].filter(Boolean).join(' · ');
+  const kind = isRepeatPatient(p) ? '<span class="chip kind">повторный</span>' : '<span class="chip info">первичный</span>';
+  return '<div class="card stack"><div class="patient-head"><div><h2>' + esc(fio(p)) + '</h2><p class="muted" style="margin-top:4px">' + line + '</p></div>' +
+    '<div class="row">' + (extraRight || kind) + '<button type="button" class="btn small" data-act="edit-patient" data-pid="' + p.id + '">Изменить</button></div></div>' +
+    '<div class="facts"><div><h3 style="margin-bottom:8px">Анамнез</h3><dl class="kv"><dt>Аллергия</dt><dd>' + dash(p.allergy) + '</dd><dt>Хронические</dt><dd>' + dash(p.chronic) + '</dd><dt>Принимает</dt><dd>' + dash(p.meds) + '</dd><dt>Заметки</dt><dd>' + dash(p.note) + '</dd></dl></div>' +
+    '<div><h3 style="margin-bottom:8px">' + (skipVid ? 'Прошлые визиты' : 'Визиты') + '</h3><div class="hist">' + histHtml(visitsOf(p.id), skipVid) + '</div></div></div></div>';
+}
+function procOptions(sel){ return S.settings.procs.map(x => '<option value="' + esc(x.id) + '"' + (x.id === sel ? ' selected' : '') + '>' + esc(x.name) + '</option>').join(''); }
+function renderPatient(p){
+  if (!p) return renderWelcome();
+  const draft = visitsOf(p.id).find(v => v.status !== 'done');
+  const t = todayIso();
+  const start = draft
+    ? '<div class="card"><div class="again" style="margin:0"><div><b>' + (draft.date === t ? 'Приём начат в ' + draft.time : 'Не завершён приём от ' + fmtLong(draft.date)) + '</b><span class="small">' + esc(draft.procName) + '</span></div><button type="button" class="btn btn-primary" data-act="open-visit" data-vid="' + draft.id + '">Продолжить приём</button></div></div>'
+    : '<div class="card"><div class="start-visit"><label class="field">Процедура<select id="start-proc">' + procOptions(S.ui.lastProc) + '</select></label><button type="button" class="btn btn-primary" data-act="start-visit" data-pid="' + p.id + '">Начать приём</button></div></div>';
+  return '<div class="stack"><button type="button" class="btn back" data-act="back">← К списку</button>' + patientHead(p) + start + planCards(p) + '</div>';
+}
+
+/* ---------- приём (протокол процедуры) ---------- */
+const total = v => v.points.reduce((s, q) => s + num(q.u), 0);
+function missing(v){
+  const r = S.settings.req, m = [];
+  if (r.check && v.checklist.length && v.checklist.some((_, i) => !v.checked[i])) m.push('чек-лист перед процедурой');
+  if (r.diag && !v.diag.trim()) m.push('жалобы и осмотр');
+  if (v.flags.drug){
+    if (!v.drug.trim()) m.push('препарат');
+    if (r.batch && !v.batch.trim()) m.push('серия препарата');
+    if (r.expiry && !v.expiry.trim()) m.push('срок годности');
+  }
+  if (v.flags.inject && !v.points.length) m.push('отметки уколов на схеме');
+  if (v.flags.consent && !v.consent) m.push('подписанное согласие на процедуру');
+  if (v.flags.memo && !v.memo.trim()) m.push('памятка после процедуры');
+  return m;
+}
+function statusChip(v){
+  const a = ' data-vchip="' + v.id + '"';
+  if (v.status === 'done') return '<span class="chip ok"' + a + '><span class="dot"></span>Завершён</span>';
+  const n = missing(v).length;
+  return n ? '<span class="chip warn"' + a + '><span class="dot"></span>Не завершён · не хватает ' + n + '</span>' : '<span class="chip info"' + a + '><span class="dot"></span>Можно завершить</span>';
+}
+function lastDrugFor(procId){
+  const v = [...S.visits.values()].filter(x => x.procId === procId && x.drug && x.status === 'done').sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time))[0];
+  return v ? v.drug : '';
+}
+function lastSame(v){
+  return visitsOf(v.pid).filter(x => x.id !== v.id && x.status === 'done' && x.procId === v.procId)[0] || null;
+}
+function startVisit(pid, procId){
+  const pr = procById(procId), p = pat(pid); if (!pr || !p) return;
+  if (visitsOf(pid).some(v => v.status !== 'done')){ toast('У пациента уже есть незавершённый приём.'); return; }
+  const v = {id: uid(), pid, date: todayIso(), time: nowHM(), procId: pr.id, procName: pr.name,
+    flags: {drug: !!pr.drug, inject: !!pr.inject, consent: !!pr.consent, memo: !!pr.memoOn},
+    unit: pr.unit || '', step: num(pr.step) || 1, def: num(pr.def),
+    kind: isRepeatPatient(p) ? 'повторный' : 'первичный',
+    checklist: S.settings.checks.slice(), checked: S.settings.checks.map(() => false),
+    diag: '', drug: pr.drug ? (pr.drugName || lastDrugFor(pr.id) || '') : '', batch: '', expiry: '', points: [], consent: false,
+    memo: pr.memoOn ? (pr.memo || '') : '', copiedFrom: null, status: 'draft', doneAt: null,
+    doctor: S.settings.doctor.fio, log: [{at: Date.now(), what: 'Начат'}], createdAt: Date.now()};
+  S.visits.set(v.id, v); queue('visits', v);
+  S.ui.lastProc = pr.id; S.ui.vid = v.id; S.ui.pid = pid;
+  render(); window.scrollTo(0, 0);
+}
+function faceSvg(v, readonly){
+  const pts = v.points.map((p, i) =>
+    '<g><circle cx="' + p.x + '" cy="' + p.y + '" r="6.5" style="fill:var(--accent);stroke:var(--surface)" stroke-width="1.5"/>' +
+    '<text x="' + p.x + '" y="' + (p.y + 3) + '" text-anchor="middle" font-size="7.5" font-weight="700" style="fill:var(--on-accent)" font-family="Arial,sans-serif">' + (i + 1) + '</text></g>').join('');
+  return '<svg class="facemap" viewBox="0 0 200 240" role="img" aria-label="Схема лица, отмечено уколов: ' + v.points.length + '" ' + (readonly ? 'style="cursor:default"' : 'data-act="map"') + '>' + FACE + pts + '</svg>';
+}
+const FACE = '<g fill="none" style="stroke:var(--face)" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M100 14C150 14 172 56 170 106C168 156 150 202 100 226C50 202 32 156 30 106C28 56 50 14 100 14Z"/>' +
+  '<path d="M56 90Q73 80 89 88M111 88Q127 80 144 90"/>' +
+  '<ellipse cx="73" cy="104" rx="13" ry="6"/><ellipse cx="127" cy="104" rx="13" ry="6"/>' +
+  '<path d="M100 106L95 144Q100 150 107 144"/>' +
+  '<path d="M78 176Q90 169 100 172Q110 169 122 176Q100 190 78 176Z"/></g>';
+function faceSvgPrint(v){
+  const pts = v.points.map((p, i) => '<g><circle cx="' + p.x + '" cy="' + p.y + '" r="6.5" fill="#1A1A2E"/><text x="' + p.x + '" y="' + (p.y + 3) + '" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff" font-family="Arial,sans-serif">' + (i + 1) + '</text></g>').join('');
+  return '<svg viewBox="0 0 200 240" xmlns="http://www.w3.org/2000/svg">' + FACE.replace(/var\(--face\)/g, '#8A8FA0') + pts + '</svg>';
+}
+function tplField(kind, id, value, dis, label, hint){
+  return '<label class="field">' + label + '<textarea id="' + id + '" data-f="' + kind + '" data-tpl="' + kind + '" rows="3" autocomplete="off"' + (dis ? dis : ' aria-describedby="hint-' + kind + '"') + '>' + esc(value) + '</textarea></label>' +
+    (dis ? '' : '<div class="tpl" id="tpl-' + kind + '" role="listbox" aria-label="Шаблоны" hidden></div><p class="note" id="hint-' + kind + '" style="margin-top:6px">' + hint + '</p>');
+}
+function stepState(v){
+  return {
+    check: !v.checklist.length || v.checklist.every((_, i) => v.checked[i]),
+    diag: !!v.diag.trim(),
+    drug: !!(v.drug.trim() && (v.batch.trim() || !S.settings.req.batch) && (v.expiry.trim() || !S.settings.req.expiry)),
+    map: v.points.length > 0,
+    consent: !!v.consent,
+    memo: !!v.memo.trim()
+  };
+}
+function renderVisit(v){
+  if (!v) return renderWelcome();
+  const p = pat(v.pid); if (!p) return renderWelcome();
+  const locked = v.status === 'done', dis = locked ? ' disabled' : '';
+  const done = stepState(v);
+  const step = (key, n, title, body) => '<div class="step' + (done[key] ? ' done' : '') + '" data-step="' + key + '" data-n="' + n + '"><div class="step-n">' + (done[key] ? ICON_CHECK : n) + '</div><div style="min-width:0"><h3>' + title + '</h3>' + body + '</div></div>';
+  const list = [];
+  if (v.checklist.length) list.push(['check', 'Перед процедурой', '<div class="checks">' + v.checklist.map((c, i) => '<label><input type="checkbox" data-f="check" data-i="' + i + '"' + (v.checked[i] ? ' checked' : '') + dis + '><span>' + esc(c) + '</span></label>').join('') + '</div>']);
+  list.push(['diag', 'Жалобы и осмотр', tplField('diag', 'diag-' + v.id, v.diag, dis, 'Что беспокоит пациента и что видит специалист',
+    'Начните писать слово (например, «морщ», «сух» или «кожа») — появятся готовые фразы. Свои фразы добавляются в настройках.')]);
+  if (v.flags.drug) list.push(['drug', 'Препарат', '<div class="grid3">' +
+    field('Название', '<input type="text" id="drug-' + v.id + '" data-f="drug" list="dl-drug" value="' + esc(v.drug) + '" autocomplete="off"' + dis + '>') +
+    field('Серия', '<input type="text" id="batch-' + v.id + '" data-f="batch" value="' + esc(v.batch) + '" autocomplete="off"' + dis + '>') +
+    field('Годен до', '<input type="text" inputmode="numeric" placeholder="ММ.ГГГГ" id="exp-' + v.id + '" data-f="expiry" value="' + esc(v.expiry) + '" autocomplete="off"' + dis + '>') + '</div>']);
+  if (v.flags.inject){
+    const pts = v.points.map((q, i) => '<div class="pt"><span class="num-badge">' + (i + 1) + '</span><span class="muted">Укол ' + (i + 1) + '</span>' +
+      '<input type="number" inputmode="decimal" min="0" step="' + v.step + '" data-f="pt" data-i="' + i + '" value="' + esc(q.u) + '" aria-label="Доза для укола ' + (i + 1) + ', ' + esc(v.unit) + '"' + dis + '>' +
+      (locked ? '<span></span>' : '<button type="button" class="btn-ghost btn" data-act="pt-del" data-i="' + i + '" aria-label="Удалить укол ' + (i + 1) + '">×</button>') + '</div>').join('');
+    list.push(['map', 'Карта уколов', '<div class="mapwrap"><div>' + faceSvg(v, locked) + '<p class="note" style="margin-top:6px">' + (locked ? 'Схема сохранена в карте.' : 'Нажмите на схему, чтобы отметить укол.') + '</p></div>' +
+      '<div class="stack"><div class="pts">' + (pts || '<p class="muted small">Уколов пока нет</p>') + '</div>' +
+      '<div class="total">Всего: <span class="num" id="total-num">' + fmtNum(total(v)) + ' ' + esc(v.unit) + '</span></div></div></div>']);
+  }
+  if (v.flags.consent) list.push(['consent', 'Согласие на процедуру', '<div class="checks"><label><input type="checkbox" data-f="consent"' + (v.consent ? ' checked' : '') + dis + '><span>Пациент подписал информированное добровольное согласие на «' + esc(v.procName) + '»</span></label></div>']);
+  if (v.flags.memo) list.push(['memo', 'Памятка после процедуры', tplField('memo', 'memo-' + v.id, v.memo, dis, 'Шаблон клиники для этой процедуры, можно изменить',
+    'Шаблоны появляются и здесь, когда начинаете писать слово (например, «бан» или «осмотр»). Памятку можно распечатать для пациента после завершения визита.')]);
+  const steps = list.map((s, i) => step(s[0], i + 1, s[1], s[2])).join('');
+
+  let again = '';
+  const last = lastSame(v);
+  if (!locked && last) again = v.copiedFrom
+    ? '<div class="again done">' + ICON_CHECK + '<div><b>Перенесено из визита ' + fmtLong(v.copiedFrom) + '</b><span class="small">Проверьте и поправьте, если нужно. Серию и срок годности — с новой упаковки.</span></div></div>'
+    : '<div class="again"><div><b>Повторный пациент</b><span class="small">Прошлая процедура «' + esc(last.procName) + '»: ' + fmtLong(last.date) + (visitSummary(last) ? ', ' + visitSummary(last) : '') + '</span></div>' +
+      '<button type="button" class="btn btn-primary" data-act="again">' + ICON_COPY + 'Как в прошлый раз</button></div>';
+
+  const m = missing(v);
+  const fixed = (v.log || []).filter(l => /исправлен/.test(l.what));
+  const wasDone = (v.log || []).some(l => /Завершён/.test(l.what));
+  const bottom = locked
+    ? '<div class="donebar"><span>' + ICON_CHECK + 'Визит завершён ' + fmtDT(v.doneAt) + (fixed.length ? ' · исправлялся' : '') + '</span>' +
+      '<span class="row" style="flex:0 1 auto"><button type="button" class="btn small" data-act="print-visit" data-tab="rec">' + ICON_PRINT + 'Запись о приёме</button>' +
+      (v.flags.memo && v.memo.trim() ? '<button type="button" class="btn small" data-act="print-visit" data-tab="memo">' + ICON_PRINT + 'Памятка</button>' : '') +
+      '<button type="button" class="btn small" data-act="reopen">Исправить</button></span></div>'
+    : '<div class="finish" id="finish"><div class="msg">' + finishMsg(m) + '</div><div class="row">' +
+      (wasDone ? '' : '<button type="button" class="btn btn-ghost btn-danger" data-act="del-visit">Удалить</button>') +
+      '<button type="button" class="btn btn-primary" data-act="finish" id="finish-btn"' + (m.length ? ' disabled' : '') + '>Завершить визит</button></div></div>';
+
+  const right = '<span class="chip ' + (v.kind === 'повторный' ? 'kind' : 'info') + '">' + v.kind + '</span>' + statusChip(v);
+  return '<div class="stack"><button type="button" class="btn back" data-act="open-patient" data-pid="' + p.id + '">← К карте пациента</button>' +
+    patientHead(p, v.id, right) +
+    '<div class="card"><div class="card-head" style="margin-bottom:10px"><div><h2 style="font-size:17px">' + esc(v.procName) + '</h2><p class="note" style="margin-top:3px">' + fmtLong(v.date) + ', ' + v.time + ' · специалист ' + esc(shortName(v.doctor)) + '</p></div>' +
+      '<button type="button" class="btn small" data-act="open-patient" data-pid="' + p.id + '">Карта пациента</button></div>' +
+      again + '<div class="steps">' + steps + '</div>' + bottom + '</div>' +
+    planCards(p) + '</div>';
+}
+function finishMsg(m){
+  return m.length
+    ? '<b>Нельзя завершить визит: не хватает ' + m.length + '</b><span class="muted">' + m.join(', ') + '</span>'
+    : '<b>Всё заполнено</b><span class="muted">После завершения запись сохранится в карте, её можно будет распечатать.</span>';
+}
+function refreshFinish(v){
+  if (!v || v.status === 'done') return;
+  const m = missing(v);
+  const box = document.querySelector('#finish .msg'), btn = document.getElementById('finish-btn');
+  if (box) box.innerHTML = finishMsg(m);
+  if (btn) btn.disabled = m.length > 0;
+  const st = stepState(v);
+  document.querySelectorAll('.step[data-step]').forEach(s => { const ok = !!st[s.dataset.step]; s.classList.toggle('done', ok); s.querySelector('.step-n').innerHTML = ok ? ICON_CHECK : s.dataset.n; });
+  const chip = statusChip(v);
+  document.querySelectorAll('[data-vchip="' + v.id + '"]').forEach(el => { if (el.outerHTML !== chip) el.outerHTML = chip; });
+}
+
+/* ---------- план лечения и рекомендации (бланки клиники) ---------- */
+const R = () => ({date: '', svc: '', dose: '', zone: ''});
+const cell = (lbl, input) => '<label class="cell"><span class="lbl">' + lbl + '</span>' + input + '</label>';
+const delBtn = (act, plan, i) => '<button type="button" class="btn-ghost btn del" data-act="' + act + '" data-plan="' + plan + '" data-i="' + i + '" aria-label="Удалить строку ' + (i + 1) + '"><span aria-hidden="true">×</span><span class="del-t">Удалить строку</span></button>';
+const planRowsOf = pl => pl.rows.filter(r => r.date || r.svc || r.dose || r.zone);
+function linkedLine(pl){ return 'Вид плана и дата — как в плане лечения: ' + PLAN_TYPES[pl.type] + (pl.from ? ' от ' + fmtDot(pl.from) : '') + '.'; }
+function planCards(p){
+  const pl = curPlan(p.id);
+  if (!pl) return '<section class="card"><div class="card-head"><div><h2 style="font-size:17px">План лечения и рекомендации</h2><p class="note" style="margin-top:3px">Ваши бланки «План лечения» и «Рекомендации». Заполняете здесь — печатаются уже заполненными.</p></div>' +
+    '<button type="button" class="btn" data-act="plan-new" data-pid="' + p.id + '">Составить план</button></div></section>';
+  return planCard(pl) + recsCard(pl) + oldPlans(p, pl);
+}
+function planCard(pl){
+  const types = PLAN_TYPES.map((t, i) => '<label><input type="radio" name="ptype-' + pl.id + '" data-f="ptype" data-plan="' + pl.id + '" value="' + i + '"' + (pl.type === i ? ' checked' : '') + '>' + t + '</label>').join('');
+  const rows = pl.rows.map((r, i) => '<div class="prow plan">' +
+    cell('Дата следующего визита', '<input type="date" data-f="plan" data-plan="' + pl.id + '" data-k="date" data-i="' + i + '" value="' + esc(r.date) + '" aria-label="Дата следующего визита, строка ' + (i + 1) + '">') +
+    cell('Услуга', '<input type="text" list="dl-svc" data-f="plan" data-plan="' + pl.id + '" data-k="svc" data-i="' + i + '" value="' + esc(r.svc) + '" aria-label="Услуга, строка ' + (i + 1) + '" autocomplete="off">') +
+    cell('Дозировка / количество', '<input type="text" data-f="plan" data-plan="' + pl.id + '" data-k="dose" data-i="' + i + '" value="' + esc(r.dose) + '" aria-label="Дозировка или количество, строка ' + (i + 1) + '" autocomplete="off">') +
+    cell('Зона', '<input type="text" list="dl-zone" data-f="plan" data-plan="' + pl.id + '" data-k="zone" data-i="' + i + '" value="' + esc(r.zone) + '" aria-label="Зона, строка ' + (i + 1) + '" autocomplete="off">') +
+    delBtn('plan-del', pl.id, i) + '</div>').join('');
+  return '<section class="card stack" aria-label="План лечения">' +
+    '<div class="card-head"><div><h2 style="font-size:17px">План лечения</h2><p class="note" style="margin-top:3px">Заполняете здесь — бланк печатается уже заполненным.</p></div>' +
+      '<div class="row"><button type="button" class="btn" data-act="print-plan" data-plan="' + pl.id + '" data-tab="plan">' + ICON_PRINT + 'Бланк для печати</button><button type="button" class="btn btn-ghost" data-act="plan-new" data-pid="' + pl.pid + '">Новый план</button></div></div>' +
+    '<div class="ptype"><div class="radio-seg" role="radiogroup" aria-label="Вид плана">' + types + '</div>' +
+      '<label class="field from">от<input type="date" data-f="pfrom" data-plan="' + pl.id + '" value="' + esc(pl.from) + '" aria-label="Дата плана"></label></div>' +
+    '<div class="prows"><div class="prow plan head" aria-hidden="true"><span>Дата следующего визита</span><span>Услуга</span><span>Дозировка / количество</span><span>Зона</span><span></span></div>' +
+      (rows || '<p class="muted small">Строк пока нет</p>') + '</div>' +
+    '<div class="row"><button type="button" class="btn" data-act="plan-add" data-plan="' + pl.id + '">+ Добавить строку</button></div></section>';
+}
+function recsCard(pl){
+  const dirs = pl.dirs.map((r, i) => '<div class="prow dir">' +
+    cell('Дата', '<input type="date" data-f="dir" data-plan="' + pl.id + '" data-k="date" data-i="' + i + '" value="' + esc(r.date) + '" aria-label="Дата, направление ' + (i + 1) + '">') +
+    cell('Направление', '<input type="text" list="dl-dir" data-f="dir" data-plan="' + pl.id + '" data-k="dir" data-i="' + i + '" value="' + esc(r.dir) + '" aria-label="Направление услуг, строка ' + (i + 1) + '" autocomplete="off">') +
+    delBtn('dir-del', pl.id, i) + '</div>').join('');
+  const cos = pl.cosm.map((r, i) => '<div class="prow cosm">' +
+    cell('Наименование', '<input type="text" list="dl-cosm" data-f="cosm" data-plan="' + pl.id + '" data-k="name" data-i="' + i + '" value="' + esc(r.name) + '" aria-label="Средство, строка ' + (i + 1) + '" autocomplete="off">') +
+    cell('Правила применения', '<input type="text" data-f="cosm" data-plan="' + pl.id + '" data-k="rule" data-i="' + i + '" value="' + esc(r.rule) + '" aria-label="Правила применения, строка ' + (i + 1) + '" autocomplete="off">') +
+    delBtn('cosm-del', pl.id, i) + '</div>').join('');
+  return '<section class="card stack" aria-label="Рекомендации">' +
+    '<div class="card-head"><div><h2 style="font-size:17px">Рекомендации</h2><p class="note" style="margin-top:3px">Другие направления услуг и домашний уход. Выберите средство из списка — правила применения подставятся сами.</p></div>' +
+      '<button type="button" class="btn" data-act="print-plan" data-plan="' + pl.id + '" data-tab="recs">' + ICON_PRINT + 'Бланк для печати</button></div>' +
+    '<p class="linked" data-linked="' + pl.id + '">' + esc(linkedLine(pl)) + '</p>' +
+    '<h3 class="sub-h">На другие направления услуг</h3>' +
+    '<div class="prows"><div class="prow dir head" aria-hidden="true"><span>Дата</span><span>Направление</span><span></span></div>' + (dirs || '<p class="muted small">Строк пока нет</p>') + '</div>' +
+    '<div class="row"><button type="button" class="btn" data-act="dir-add" data-plan="' + pl.id + '">+ Добавить направление</button></div>' +
+    '<h3 class="sub-h">По косметике</h3>' +
+    '<div class="prows"><div class="prow cosm head" aria-hidden="true"><span>Наименование</span><span>Правила применения</span><span></span></div>' + (cos || '<p class="muted small">Строк пока нет</p>') + '</div>' +
+    '<div class="row"><button type="button" class="btn" data-act="cosm-add" data-plan="' + pl.id + '">+ Добавить средство</button></div></section>';
+}
+function oldPlans(p, cur){
+  const old = plansOf(p.id).filter(x => x.id !== cur.id);
+  if (!old.length) return '';
+  return '<section class="card"><details class="old"><summary>Прошлые планы: ' + old.length + '</summary><div class="list">' + old.map(x =>
+    '<div class="li"><div><b>' + PLAN_TYPES[x.type] + (x.from ? ' от ' + fmtDot(x.from) : '') + '</b><div class="small muted">визитов в плане: ' + planRowsOf(x).length + '</div></div>' +
+    '<button type="button" class="btn small" data-act="print-plan" data-plan="' + x.id + '" data-tab="plan">' + ICON_PRINT + 'Бланки</button></div>').join('') + '</div></details></section>';
+}
+function newPlan(pid){
+  const pl = {id: uid(), pid, type: 0, from: todayIso(), rows: [R(), R(), R()], dirs: [{date: '', dir: ''}], cosm: [{name: '', rule: ''}, {name: '', rule: ''}], createdAt: Date.now()};
+  S.plans.set(pl.id, pl); queue('plans', pl);
+  return pl;
+}
+
+/* ---------- бумага: бланки клиники, запись о приёме, памятка ---------- */
+function blankHead(title){
+  const c = S.settings.clinic;
+  const logo = imgSrc(c.logo), qr = imgSrc(c.qr);
+  const left = logo ? '<img src="' + logo + '" alt="">' : '<div class="bl-name">' + esc(c.name) + '</div>';
+  const care = [c.careTitle, c.phone, c.site].filter(x => x && String(x).trim()).map(esc).join('<br>');
+  return '<div class="bl-head"><div class="bl-l">' + left + '</div><div class="bl-title">' + title + '</div>' +
+    '<div class="bl-care">' + (care ? '<div>' + care + '</div>' : '') + (qr ? '<img src="' + qr + '" alt="">' : '') + '</div></div>';
+}
+function blankTop(pl, p){
+  return '<div class="bl-opts">' + PLAN_TYPES.map((t, i) => '<span class="bl-opt' + (pl.type === i ? ' on' : '') + '"><i></i>' + t + '</span>').join('') +
+      '<span class="bl-from">от <span class="bl-line">' + (pl.from ? fmtDot(pl.from) : '&nbsp;') + '</span></span></div>' +
+    '<div class="bl-fio"><span>ФИО пациента</span><span class="bl-line">' + esc(fio(p)) + '</span></div>';
+}
+function blankRows(items, n, cols){
+  let out = '';
+  for (let i = 0; i < Math.max(n, items.length); i++){ const r = items[i]; out += '<tr>' + cols.map(c => '<td>' + (r ? (c === 'date' ? fmtDot(r[c]) : esc(r[c])) : '') + '</td>').join('') + '</tr>'; }
+  return out;
+}
+function planPaper(pl, p){
+  const rows = planRowsOf(pl).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+  const n = Math.max(S.settings.blank.planRows, rows.length);
+  return '<div class="paper blank plan" style="--rows:' + n + '">' + blankHead('План лечения') + blankTop(pl, p) +
+    '<table><colgroup><col style="width:21%"><col style="width:31%"><col style="width:24%"><col style="width:24%"></colgroup>' +
+    '<thead><tr><th>Дата следующего визита</th><th>Услуга</th><th>Дозировка / Количество</th><th>Зона</th></tr></thead>' +
+    '<tbody>' + blankRows(rows, S.settings.blank.planRows, ['date', 'svc', 'dose', 'zone']) + '</tbody></table></div>';
+}
+function recsPaper(pl, p){
+  const dirs = pl.dirs.filter(r => r.date || r.dir).slice().sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999'));
+  const cos = pl.cosm.filter(r => r.name || r.rule);
+  const n = Math.max(S.settings.blank.dirRows, dirs.length) + Math.max(S.settings.blank.cosmRows, cos.length);
+  return '<div class="paper blank recs" style="--rows:' + n + '">' + blankHead('Рекомендации') + blankTop(pl, p) +
+    '<div class="bl-sec">Рекомендация на другие направления услуг:</div>' +
+    '<table><colgroup><col style="width:24%"><col style="width:76%"></colgroup><thead><tr><th>Дата</th><th>Направление</th></tr></thead>' +
+    '<tbody>' + blankRows(dirs, S.settings.blank.dirRows, ['date', 'dir']) + '</tbody></table>' +
+    '<div class="bl-sec">Рекомендация по косметике:</div>' +
+    '<table><colgroup><col style="width:40%"><col style="width:60%"></colgroup><thead><tr><th>Наименование</th><th>Правила применения</th></tr></thead>' +
+    '<tbody>' + blankRows(cos, S.settings.blank.cosmRows, ['name', 'rule']) + '</tbody></table></div>';
+}
+const lineItem = (a, b) => '<div class="lineitem"><span>' + a + '</span><span class="filled">' + b + '</span></div>';
+const secP = (title, text) => '<div class="sec"><b>' + title + '</b><p>' + (text && String(text).trim() ? esc(text) : '—') + '</p></div>';
+function paperTop(right){
+  const c = S.settings.clinic;
+  const logo = imgSrc(c.logo);
+  return '<div class="rec-top"><div>' + (logo ? '<img src="' + logo + '" alt="">' : '<b>' + esc(c.name) + '</b>') + '</div><div class="small" style="text-align:right">' + right + '</div></div>';
+}
+function recPaper(v, p){
+  const pts = v.points.map(q => '<li>' + fmtNum(num(q.u)) + ' ' + esc(v.unit) + '</li>').join('');
+  const fixed = (v.log || []).filter(l => /^Открыт для исправления/.test(l.what)).map(l => fmtDT(l.at)).join(', ');
+  return '<div class="paper rec">' + paperTop('Запись о приёме<br>для медицинской карты (форма 025/у)') +
+    '<h4>' + esc(v.procName) + '</h4><div class="sub">' + fmtLong(v.date) + ', ' + v.time + ' · ' + v.kind + ' приём</div>' +
+    lineItem('Пациент', esc(fio(p)) + (p.birth ? ', ' + fmtDot(p.birth) + ' г. р.' : '')) +
+    (p.card ? lineItem('№ медицинской карты', esc(p.card)) : '') +
+    lineItem('Специалист', esc(v.doctor)) +
+    secP('Жалобы и осмотр', v.diag) +
+    (v.flags.drug ? secP('Препарат', [v.drug, v.batch ? 'серия ' + v.batch : '', v.expiry ? 'годен до ' + v.expiry : ''].filter(Boolean).join(', ')) : '') +
+    (v.flags.inject ? '<div class="sec"><b>Введено</b><div class="rec-map">' + faceSvgPrint(v) + '<div><p><strong>Всего: ' + fmtNum(total(v)) + ' ' + esc(v.unit) + '</strong>, точек введения: ' + v.points.length + '</p><ol>' + pts + '</ol></div></div></div>' : '') +
+    (v.flags.consent ? secP('Информированное добровольное согласие', v.consent ? 'подписано' : 'не подписано') : '') +
+    (v.flags.memo ? secP('Рекомендации после процедуры', v.memo) : '') +
+    '<div class="sign"><span>Дата: ' + fmtDot(v.date) + '</span><span>Специалист: ____________ / ' + esc(shortName(v.doctor)) + '</span></div>' +
+    (fixed ? '<p class="foot-note">Запись исправлялась: ' + fixed + '.</p>' : '') +
+    (v.status !== 'done' ? '<p class="foot-note">Визит ещё не завершён.</p>' : '') + '</div>';
+}
+function memoPaper(v, p){
+  const c = S.settings.clinic;
+  const items = lines(v.memo).reduce((a, l) => a.concat(l.split(/(?<=[.!?])\s+(?=[А-ЯЁA-Z0-9«])/)), []).filter(Boolean);
+  return '<div class="paper memo">' + paperTop(esc(c.name)) +
+    '<h4>Памятка после процедуры</h4><div class="sub">' + esc(v.procName) + ' · ' + fmtLong(v.date) + '</div>' +
+    lineItem('Пациент', esc(fio(p))) +
+    '<ul>' + items.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>' +
+    (c.phone ? '<p class="foot-note">Если что-то беспокоит — позвоните нам' + (c.careTitle ? ' (' + esc(c.careTitle) + ')' : '') + ': ' + esc(c.phone) + '</p>' : '') +
+    '<div class="sign"><span>Специалист: ' + esc(shortName(v.doctor)) + '</span><span>Дата: ' + fmtDot(v.date) + '</span></div></div>';
+}
+
+/* окно печати */
+function renderModal(){
+  const box = document.getElementById('overlay');
+  const M = S.ui.modal;
+  if (!M || S.locked || !S.settings || S.fatal){ box.hidden = true; box.innerHTML = ''; document.body.classList.remove('modal-open'); return; }
+  let title, sub, tabs, paper, note;
+  if (M.kind === 'plan'){
+    const pl = S.plans.get(M.id), p = pl && pat(pl.pid);
+    if (!p){ S.ui.modal = null; return renderModal(); }
+    title = fio(p); sub = PLAN_TYPES[pl.type] + (pl.from ? ' от ' + fmtDot(pl.from) : '');
+    tabs = [['plan', 'План лечения'], ['recs', 'Рекомендации']];
+    paper = M.tab === 'recs' ? recsPaper(pl, p) : planPaper(pl, p);
+    note = 'Бланк печатается на одном листе А4. В окне печати можно выбрать «Сохранить как PDF».';
+  } else {
+    const v = vis(M.id), p = v && pat(v.pid);
+    if (!p){ S.ui.modal = null; return renderModal(); }
+    title = fio(p); sub = v.procName + ' · ' + fmtLong(v.date);
+    tabs = [['rec', 'Запись о приёме']].concat(v.flags.memo && v.memo.trim() ? [['memo', 'Памятка для пациента']] : []);
+    paper = M.tab === 'memo' ? memoPaper(v, p) : recPaper(v, p);
+    note = M.tab === 'memo' ? 'Памятка отдаётся пациенту.' : 'Запись можно вклеить в медицинскую карту (форма 025/у) и подписать.';
+  }
+  document.body.classList.add('modal-open');
+  box.innerHTML = '<div class="modal" role="dialog" aria-modal="true" aria-label="Печать" tabindex="-1">' +
+    '<div class="modal-head"><div><h3>' + esc(title) + '</h3><p class="small muted">' + esc(sub) + '</p></div>' +
+      '<div class="row"><button type="button" class="btn btn-primary" data-act="do-print">' + ICON_PRINT + 'Печать</button><button type="button" class="btn" data-act="close">Закрыть</button></div></div>' +
+    '<div class="modal-body"><div class="tabs" role="group" aria-label="Что печатать">' + tabs.map(t => '<button type="button" data-act="tab" data-tab="' + t[0] + '" aria-pressed="' + (M.tab === t[0]) + '">' + t[1] + '</button>').join('') + '</div>' +
+      '<div class="paper-scroll" id="paper">' + paper + '</div><p class="note">' + note + '</p></div></div>';
+  box.hidden = false;
+}
+function openModal(m){ S.ui.modal = m; renderModal(); const d = document.querySelector('#overlay .modal'); if (d) d.focus(); }
+function closeModal(){ S.ui.modal = null; renderModal(); }
+function doPrint(){
+  const paper = $('#paper'); if (!paper) return;
+  const root = document.getElementById('print-root');
+  root.innerHTML = paper.innerHTML;
+  setTimeout(() => { try { window.print(); } catch (e){ toast('Печать не открылась. Нажмите Ctrl+P.'); } }, 50);
+}
+window.addEventListener('afterprint', () => { const r = document.getElementById('print-root'); if (r) r.innerHTML = ''; });
+
+/* ---------- настройки ---------- */
+const STABS = [['clinic', 'Клиника и бланки'], ['procs', 'Процедуры'], ['protocol', 'Протокол и шаблоны'], ['lists', 'Списки для бланков'], ['security', 'PIN и пароль'], ['data', 'Копии и данные']];
+function renderSettings(){
+  const nav = '<nav class="snav" aria-label="Разделы настроек">' + STABS.map(t => '<button type="button" data-act="stab" data-tab="' + t[0] + '" aria-current="' + (S.ui.stab === t[0]) + '">' + t[1] + '</button>').join('') + '</nav>';
+  const body = ({clinic: setClinic, procs: setProcs, protocol: setProtocol, lists: setLists, security: setSecurity, data: setData}[S.ui.stab] || setClinic)();
+  return '<div class="page-head"><div><h2>Настройки</h2><p>Изменения сохраняются сами, когда переходите к следующему полю.</p></div></div><div class="settings">' + nav + '<div class="stack">' + body + '</div></div>';
+}
+const sText = (label, path, cls, ph) => field(label, '<input type="text" data-s="' + path + '" value="' + esc(getPath(S.settings, path)) + '" autocomplete="off"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>', false, cls);
+const sNum = (label, path, min, max) => field(label, '<input type="number" data-s="' + path + '" data-min="' + min + '" data-max="' + max + '" min="' + min + '" max="' + max + '" value="' + esc(getPath(S.settings, path)) + '">');
+const sList = (label, path, hint, rows) => field(label, '<textarea data-list="' + path + '" rows="' + (rows || 6) + '">' + esc((getPath(S.settings, path) || []).join('\n')) + '</textarea>') + (hint ? '<p class="note">' + hint + '</p>' : '');
+const sCheck = (label, path) => '<label class="checkline"><input type="checkbox" data-s="' + path + '"' + (getPath(S.settings, path) ? ' checked' : '') + '><span>' + label + '</span></label>';
+function imgPick(key, label, square){
+  const src = imgSrc(S.settings.clinic[key]);
+  return '<div class="img-pick"><div class="prev' + (square ? ' sq' : '') + '">' + (src ? '<img src="' + src + '" alt="">' : 'нет') + '</div><div class="stack-sm"><b>' + label + '</b><div class="row">' +
+    '<span class="btn file small">Загрузить<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" data-img="' + key + '" aria-label="' + esc(label) + '"></span>' +
+    (src ? '<button type="button" class="btn small btn-ghost" data-act="img-del" data-key="' + key + '">Убрать</button>' : '') + '</div></div></div>';
+}
+function setClinic(){
+  return '<section class="card stack"><h3>Клиника и специалист</h3><div class="sgrid">' +
+      sText('Название клиники', 'clinic.name') + sText('ФИО специалиста', 'doctor.fio') +
+      sText('Подпись над телефоном на бланках', 'clinic.careTitle', '', 'Отдел заботы') + sText('Телефон для пациентов', 'clinic.phone', '', '+7 …') +
+      sText('Сайт', 'clinic.site', 'span2') + '</div></section>' +
+    '<section class="card stack"><h3>Логотип и QR-код для бланков</h3>' + imgPick('logo', 'Логотип') + imgPick('qr', 'QR-код «Отдел заботы»', true) +
+      '<p class="note">Если логотипа нет, на бланке печатается название клиники. Картинки хранятся в программе и печатаются на «Плане лечения», «Рекомендациях», записи о приёме и памятке.</p></section>' +
+    '<section class="card stack"><h3>Сколько пустых строк на бланках</h3><div class="sgrid">' +
+      sNum('План лечения', 'blank.planRows', 3, 26) + sNum('Направления услуг', 'blank.dirRows', 1, 12) + sNum('Косметика', 'blank.cosmRows', 1, 12) + '</div>' +
+      '<p class="note">Строки растягиваются на весь лист А4. Чем меньше строк, тем они выше.</p></section>';
+}
+function setProcs(){
+  const units = ['ЕД', 'мл', 'мг', 'ед.', ''];
+  const items = S.settings.procs.map((p, i) => '<div class="proc">' +
+    '<div class="proc-grid">' +
+      field('Название', '<input type="text" data-p="name" data-pi="' + i + '" value="' + esc(p.name) + '">') +
+      field('Единицы', '<select data-p="unit" data-pi="' + i + '">' + units.map(u => '<option value="' + u + '"' + (p.unit === u ? ' selected' : '') + '>' + (u || '—') + '</option>').join('') + '</select>') +
+      field('Шаг дозы', '<input type="number" min="0" step="any" data-p="step" data-pi="' + i + '" value="' + esc(p.step) + '">') +
+      field('Доза на укол по умолчанию', '<input type="number" min="0" step="any" data-p="def" data-pi="' + i + '" value="' + esc(p.def) + '">') +
+    '</div>' +
+    '<div class="flags">' +
+      '<label><input type="checkbox" data-p="drug" data-pi="' + i + '"' + (p.drug ? ' checked' : '') + '>препарат и серия</label>' +
+      '<label><input type="checkbox" data-p="inject" data-pi="' + i + '"' + (p.inject ? ' checked' : '') + '>карта уколов</label>' +
+      '<label><input type="checkbox" data-p="consent" data-pi="' + i + '"' + (p.consent ? ' checked' : '') + '>согласие на процедуру</label>' +
+      '<label><input type="checkbox" data-p="memoOn" data-pi="' + i + '"' + (p.memoOn ? ' checked' : '') + '>памятка после процедуры</label>' +
+    '</div>' +
+    field('Препарат по умолчанию', '<input type="text" data-p="drugName" data-pi="' + i + '" value="' + esc(p.drugName) + '" placeholder="если пусто — подставится препарат прошлого такого визита">') +
+    field('Шаблон памятки', '<textarea rows="3" data-p="memo" data-pi="' + i + '">' + esc(p.memo) + '</textarea>') +
+    '<div class="row end"><button type="button" class="btn small btn-ghost btn-danger" data-act="proc-del" data-pi="' + i + '">Удалить процедуру</button></div></div>').join('');
+  return '<section class="card stack"><div class="card-head"><div><h3>Процедуры</h3><p class="note" style="margin-top:3px">Что спрашивает протокол для каждой процедуры. Изменения касаются новых приёмов, прошлые записи не меняются.</p></div>' +
+    '<button type="button" class="btn" data-act="proc-add">+ Добавить процедуру</button></div>' + items + '</section>';
+}
+function setProtocol(){
+  return '<section class="card stack"><h3>Чек-лист перед процедурой</h3>' + sList('Пункты чек-листа', 'checks', 'Каждый пункт — с новой строки. Изменения касаются новых приёмов.', 5) + '</section>' +
+    '<section class="card stack"><h3>Без чего нельзя завершить визит</h3><div class="stack-sm">' +
+      sCheck('Отмечены все пункты чек-листа', 'req.check') + sCheck('Заполнены жалобы и осмотр', 'req.diag') +
+      sCheck('Записана серия препарата', 'req.batch') + sCheck('Записан срок годности препарата', 'req.expiry') +
+      '<p class="note">Препарат, отметки уколов, согласие и памятка обязательны для тех процедур, где они включены (раздел «Процедуры»).</p></div></section>' +
+    '<section class="card stack"><h3>Шаблоны фраз</h3><p class="note">Появляются, когда специалист начинает писать слово. Каждая фраза — с новой строки.</p>' +
+      sList('Жалобы и осмотр', 'tpl.diag', '', 10) + sList('Памятка после процедуры', 'tpl.memo', '', 8) + '</section>';
+}
+function setLists(){
+  const cos = S.settings.lists.cosmetics.map(c => c.name + (c.rule ? ' — ' + c.rule : '')).join('\n');
+  return '<section class="card stack"><h3>Подсказки при заполнении плана и рекомендаций</h3><p class="note">Каждая позиция — с новой строки. Можно вписать и то, чего нет в списке.</p>' +
+    sList('Услуги', 'lists.services', '', 7) + sList('Зоны', 'lists.zones', '', 7) + sList('Направления услуг', 'lists.directions', '', 6) +
+    field('Косметика: название — правила применения', '<textarea data-list="lists.cosmetics" rows="8">' + esc(cos) + '</textarea>') +
+    '<p class="note">Название и правила разделяются тире: «Крем SPF 50 — каждое утро». Правила подставятся в бланк сами.</p></section>';
+}
+function setSecurity(){
+  const X = S.sec;
+  return '<section class="card stack"><h3>Автоблокировка</h3>' + field('Блокировать после бездействия', '<select data-s="security.lockMin" data-numeric="1">' +
+      [5, 10, 15, 30, 60].map(m => '<option value="' + m + '"' + (S.settings.security.lockMin === m ? ' selected' : '') + '>' + m + ' мин</option>').join('') + '</select>') + '</section>' +
+    '<section class="card stack"><h3>Сменить PIN специалиста</h3><div class="sgrid">' +
+      field('Текущий PIN', '<input type="password" inputmode="numeric" maxlength="8" id="sp-cur" autocomplete="off">') + '<span></span>' +
+      field('Новый PIN, 4–8 цифр', '<input type="password" inputmode="numeric" maxlength="8" id="sp-new" autocomplete="new-password">') +
+      field('Новый PIN ещё раз', '<input type="password" inputmode="numeric" maxlength="8" id="sp-new2" autocomplete="new-password">') + '</div>' +
+      errBox(X.pinErr) + okBox(X.pinOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pin"' + (X.busy ? ' disabled' : '') + '>Сменить PIN</button></div></section>' +
+    '<section class="card stack"><h3>Сменить пароль клиники</h3><p class="note">После смены сразу сохраните новую копию: копии, сохранённые раньше, открываются прежним паролем.</p><div class="sgrid">' +
+      field('Текущий пароль клиники', '<input type="password" id="sw-cur" autocomplete="off">') + '<span></span>' +
+      field('Новый пароль, не короче 8 знаков', '<input type="password" id="sw-new" autocomplete="new-password">') +
+      field('Новый пароль ещё раз', '<input type="password" id="sw-new2" autocomplete="new-password">') + '</div>' +
+      errBox(X.pwErr) + okBox(X.pwOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pw"' + (X.busy ? ' disabled' : '') + '>Сменить пароль</button></div></section>';
+}
+function setData(){
+  const b = S.settings.backup;
+  const persistLine = S.persist === true ? '<span class="chip ok">браузер не удалит данные сам</span>'
+    : S.persist === false ? '<span class="chip warn">браузер может удалить данные при нехватке места</span>' : '<span class="chip neutral">не удалось проверить</span>';
+  return '<section class="card stack"><h3>Копия данных</h3>' +
+      '<p>' + (b.lastAt ? 'Последняя копия: <b>' + fmtDT(b.lastAt) + '</b>.' : 'Копия ещё не сохранялась.') + '</p>' +
+      '<p class="note">Копия — один зашифрованный файл в папке «Загрузки». Открыть его можно только в этой программе и только с паролем клиники. Раз в неделю переносите свежую копию на флешку или в облако клиники.</p>' +
+      sCheck('Сохранять копию сама раз в день, при первом входе', 'backup.auto') +
+      '<div class="row"><button type="button" class="btn btn-primary" data-act="backup">Сохранить копию сейчас</button></div></section>' +
+    '<section class="card stack">' + restoreForm('settings') + '</section>' +
+    '<section class="card stack"><h3>Где хранятся данные</h3>' +
+      '<p class="small">Только в этом браузере на этом компьютере. На сервер и в интернет ничего не отправляется. Оператор персональных данных пациентов — клиника.</p>' +
+      '<div class="row">' + persistLine + (S.usage != null ? '<span class="chip neutral">занято около ' + fmtNum(S.usage / 1048576) + ' МБ</span>' : '') + '</div>' +
+      (S.persist === false ? '<p class="note">Чтобы браузер не удалил данные при нехватке места, установите программу как приложение и нажмите кнопку ниже.</p>' : '') +
+      '<div class="row">' + (S.persist !== true ? '<button type="button" class="btn" data-act="persist">Попросить браузер хранить данные постоянно</button>' : '') +
+        (S.installEvt ? '<button type="button" class="btn" data-act="install">Установить как приложение</button>' : '') + '</div>' +
+      '<p class="note">Установленная программа открывается в своём окне со значком на рабочем столе и работает без интернета.</p></section>' +
+    '<section class="card stack danger-zone"><h3>Удалить все данные с этого компьютера</h3>' +
+      '<p class="small">Нужно, если программу больше не используют на этом компьютере. Сначала сохраните копию. Удаление нельзя отменить.</p>' +
+      field('Пароль клиники', '<input type="password" id="del-pw" autocomplete="off">') + errBox(S.sec.delErr) +
+      '<div class="row"><button type="button" class="btn btn-danger" data-act="wipe"' + (S.sec.busy ? ' disabled' : '') + '>Удалить все данные</button></div></section>';
+}
+function parseList(path, text){
+  if (path === 'lists.cosmetics') return lines(text).map(l => { const m = l.split(/\s+[—–-]\s+/); return {name: m[0].trim(), rule: m.slice(1).join(' — ').trim()}; }).filter(c => c.name);
+  return lines(text);
+}
+function readImage(file, maxSide){
+  return new Promise((res, rej) => {
+    if (!file || !/^image\//.test(file.type)) return rej(new Error('Выберите картинку PNG или JPG.'));
+    if (file.size > 8e6) return rej(new Error('Картинка слишком большая — нужна меньше 8 МБ.'));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+      const w = Math.max(1, Math.round((img.naturalWidth || maxSide) * k)), h = Math.max(1, Math.round((img.naturalHeight || maxSide) * k));
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url); res(c.toDataURL('image/png'));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('Не получилось прочитать картинку.')); };
+    img.src = url;
+  });
+}
+async function checkStorage(){
+  try { if (navigator.storage && navigator.storage.persisted) S.persist = await navigator.storage.persisted(); } catch (e){}
+  try { if (navigator.storage && navigator.storage.estimate){ const e = await navigator.storage.estimate(); S.usage = e.usage; } } catch (e){}
+}
+async function askPersist(){ try { if (navigator.storage && navigator.storage.persist) S.persist = await navigator.storage.persist(); } catch (e){} }
+
+/* ---------- шаблоны фраз при наборе ---------- */
+const TPL = {kind: null, items: [], on: -1};
+const WORD = /[A-Za-zА-Яа-яЁё0-9-]+$/;
+function resetTpl(){ TPL.kind = null; TPL.items = []; TPL.on = -1; }
+function fragAt(ta){
+  const pos = ta.selectionStart == null ? ta.value.length : ta.selectionStart;
+  const sent = ta.value.slice(0, pos).match(/[^.!?\n]*$/)[0];
+  const w = sent.match(WORD);
+  return {pos, sent, word: w ? w[0] : ''};
+}
+function tplMatches(kind, f, value){
+  if (f.word.length < 2) return [];
+  const w = norm(f.word), lead = norm(f.sent.slice(0, f.sent.length - f.word.length).trim()), have = norm(value);
+  const out = [];
+  (S.settings.tpl[kind] || []).forEach((t, idx) => {
+    const nt = norm(t);
+    if (have.indexOf(nt) >= 0) return;
+    const words = nt.match(/[a-zа-я0-9-]+/g) || [];
+    const wi = words.findIndex(x => x.startsWith(w));
+    if (wi < 0) return;
+    out.push({t, idx, score: (wi === 0 ? 0 : 1) - (lead && nt.startsWith(lead) ? 2 : 0)});
+  });
+  out.sort((a, b) => a.score - b.score || a.idx - b.idx);
+  return out.slice(0, 6).map(x => x.t);
+}
+function hl(t, w){
+  const nw = norm(w), re = /[A-Za-zА-Яа-яЁё0-9-]+/g; let m;
+  while ((m = re.exec(t))){ if (norm(m[0]).startsWith(nw)){ const a = m.index, b = a + w.length; return esc(t.slice(0, a)) + '<b>' + esc(t.slice(a, b)) + '</b>' + esc(t.slice(b)); } }
+  return esc(t);
+}
+function showTpl(ta){
+  const kind = ta.dataset.tpl, box = document.getElementById('tpl-' + kind); if (!box) return;
+  const f = fragAt(ta), items = tplMatches(kind, f, ta.value);
+  TPL.kind = kind; TPL.items = items; TPL.on = -1;
+  if (!items.length){ box.hidden = true; box.innerHTML = ''; return; }
+  const wasHidden = box.hidden;
+  box.innerHTML = '<span class="tpl-h">Шаблоны — нажмите, чтобы вставить (или стрелки и Enter)</span>' + items.map((t, i) => '<button type="button" role="option" aria-selected="false" data-act="tpl" data-kind="' + kind + '" data-i="' + i + '">' + hl(t, f.word) + '</button>').join('');
+  box.hidden = false;
+  if (wasHidden && box.scrollIntoView){ try { box.scrollIntoView({block: 'nearest'}); } catch (e){} }
+}
+function hideTpl(){ document.querySelectorAll('.tpl').forEach(b => { b.hidden = true; b.innerHTML = ''; }); resetTpl(); }
+function markTpl(){ const box = TPL.kind && document.getElementById('tpl-' + TPL.kind); if (!box) return;
+  box.querySelectorAll('button').forEach((b, i) => { b.classList.toggle('on', i === TPL.on); b.setAttribute('aria-selected', String(i === TPL.on)); }); }
+function applyTpl(ta, t){
+  const f = fragAt(ta), v = ta.value;
+  const lead = norm(f.sent.slice(0, f.sent.length - f.word.length).trim());
+  let start, ins;
+  if (lead && norm(t).startsWith(lead)){ start = f.pos - f.sent.length + (f.sent.length - f.sent.replace(/^\s+/, '').length); ins = t; }
+  else if (!lead){ start = f.pos - f.word.length; ins = t; }
+  else { start = f.pos - f.word.length; ins = t.charAt(0).toLowerCase() + t.slice(1); }
+  const pre = v.slice(0, start), after = v.slice(f.pos).replace(/^[A-Za-zА-Яа-яЁё0-9-]+/, '');
+  const lead2 = pre && !/\s$/.test(pre) ? ' ' : '';
+  const tail = after && /^\s/.test(after) ? '' : ' ';
+  ta.value = pre + lead2 + ins + tail + after;
+  const caret = (pre + lead2 + ins + tail).length;
+  ta.focus(); ta.setSelectionRange(caret, caret);
+  ta.dispatchEvent(new Event('input', {bubbles: true}));
+}
+
+/* ---------- подсказки для полей ---------- */
+function renderDatalists(){
+  if (!S.settings) return;
+  const L = S.settings.lists;
+  const drugs = [...new Set(S.settings.procs.map(p => p.drugName).concat([...S.visits.values()].map(v => v.drug)).filter(x => x && x.trim()))].sort((a, b) => a.localeCompare(b, 'ru'));
+  const dl = (id, arr) => '<datalist id="' + id + '">' + arr.map(s => '<option value="' + esc(s) + '"></option>').join('') + '</datalist>';
+  document.getElementById('datalists').innerHTML = dl('dl-svc', L.services) + dl('dl-zone', L.zones) + dl('dl-dir', L.directions) + dl('dl-cosm', L.cosmetics.map(c => c.name)) + dl('dl-drug', drugs);
+}
+
+/* ---------- уведомление ---------- */
+let toastTimer = 0;
+function toast(msg, ms){
+  const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3600);
+}
+
+/* ---------- вход, блокировка ---------- */
+let lastAct = Date.now();
+['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach(ev => window.addEventListener(ev, () => { lastAct = Date.now(); }, {passive: true, capture: true}));
+function idleCheck(){ if (S.settings && !S.locked && !S.fatal && Date.now() - lastAct > S.settings.security.lockMin * 60000) lockNow(); }
+setInterval(idleCheck, 10000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) idleCheck(); });
+function lockNow(){
+  flush(); hideTpl();
+  S.locked = true; S.ui.modal = null; S.lock = {mode: 'pin', err: '', busy: false, fails: S.lock.fails || 0, until: S.lock.until || 0};
+  render();
+}
+async function unlock(pin){
+  const L = S.lock, sec = S.settings.security;
+  if (L.until > Date.now()){ L.err = 'Слишком много попыток. Подождите ' + Math.ceil((L.until - Date.now()) / 1000) + ' с.'; return render(); }
+  if (!pin){ L.err = 'Введите PIN.'; return render(); }
+  L.busy = true; L.err = ''; render();
+  let ok = false;
+  try { ok = (await pinHash(pin, sec.pinSalt, sec.pinIter)) === sec.pinHash; } catch (e){ console.error(e); }
+  L.busy = false;
+  if (!ok){
+    L.fails++;
+    if (L.fails >= 5) L.until = Date.now() + 30000 * (L.fails - 4);
+    L.err = L.fails >= 5 ? 'Неверный PIN. Следующая попытка — через ' + 30 * (L.fails - 4) + ' с.' : 'Неверный PIN.';
+    return render();
+  }
+  L.fails = 0; L.until = 0; S.locked = false; lastAct = Date.now();
+  render();
+  autoBackup();
+  if (S.persist !== true) askPersist().then(checkStorage);
+}
+
+/* ---------- действия ---------- */
+function curVisit(){ return S.ui.vid ? vis(S.ui.vid) : null; }
+function openPatient(pid){
+  const p = pat(pid); if (!p) return;
+  p.openedAt = Date.now(); queue('patients', p);
+  S.ui.pid = pid; S.ui.vid = null; S.ui.edit = null; S.ui.formErr = '';
+  render(); window.scrollTo(0, 0);
+}
+function openVisit(vid){
+  const v = vis(vid); if (!v) return;
+  const p = pat(v.pid); if (p){ p.openedAt = Date.now(); queue('patients', p); }
+  S.ui.vid = vid; S.ui.pid = v.pid; S.ui.edit = null;
+  render(); window.scrollTo(0, 0);
+}
+function planFor(el){ return S.plans.get(el.dataset.plan); }
+
+async function onClick(e){
+  if (!e.target.closest('.tpl') && !(e.target.dataset && e.target.dataset.tpl)) hideTpl();
+  const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
+  const act = el.dataset.act;
+  const v = curVisit();
+  switch (act){
+    case 'reload': location.reload(); break;
+    /* первая настройка */
+    case 'su-next': {
+      const s = S.setup; s.err = '';
+      if (s.step === 1){ if (!clean(s.name) || !clean(s.doctor)){ s.err = 'Заполните название клиники и ФИО специалиста.'; return render(); } s.step = 2; }
+      else if (s.step === 2){
+        if (!/^\d{4,8}$/.test(s.pin)){ s.err = 'PIN — от 4 до 8 цифр.'; return render(); }
+        if (weakPin(s.pin)){ s.err = 'Слишком простой PIN. Придумайте другой.'; return render(); }
+        if (s.pin !== s.pin2){ s.err = 'PIN не совпадает.'; return render(); }
+        s.step = 3;
+      }
+      return render();
+    }
+    case 'su-back': S.setup.err = ''; S.setup.step = Math.max(1, S.setup.step - 1); return render();
+    case 'su-restore': S.setup.restore = true; S.restore = {file: null, err: '', busy: false}; return render();
+    case 'su-restore-cancel': S.setup.restore = false; return render();
+    case 'su-finish': {
+      const s = S.setup; s.err = '';
+      if (s.pw.length < 8){ s.err = 'Пароль клиники — не короче 8 знаков.'; return render(); }
+      if (s.pw !== s.pw2){ s.err = 'Пароли не совпадают.'; return render(); }
+      s.busy = true; render();
+      try {
+        const st = withDefaults(null);
+        st.clinic.name = clean(s.name); st.doctor.fio = clean(s.doctor);
+        const salt = b64(rnd(16));
+        Object.assign(st.security, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(s.pin, salt, PIN_ITER)});
+        const keys = await makeClinicKeys(s.pw);
+        st.security.pub = keys.pub; st.security.wrap = keys.wrap;
+        st.createdAt = Date.now();
+        await DB.write([{op: 'put', store: 'kv', value: {k: 'settings', v: st}}]);
+        S.settings = st; S.setup = freshSetup(); S.locked = false; lastAct = Date.now();
+        renderDatalists(); render();
+        toast('Готово. Можно добавлять пациентов.', 4500);
+        askPersist().then(checkStorage);
+      } catch (err){ console.error(err); s.busy = false; s.err = 'Не получилось сохранить настройки: ' + (err.message || err); render(); }
+      return;
+    }
+    case 'restore': return doRestore(el.dataset.where);
+    /* вход */
+    case 'lk-forgot': S.lock.mode = 'forgot'; S.lock.err = ''; return render();
+    case 'lk-cancel': S.lock.mode = 'pin'; S.lock.err = ''; return render();
+    case 'lk-reset': {
+      const L = S.lock, pw = ($('#fg-pw') || {}).value || '', a = ($('#fg-pin') || {}).value || '', b = ($('#fg-pin2') || {}).value || '';
+      if (!/^\d{4,8}$/.test(a)){ L.err = 'Новый PIN — от 4 до 8 цифр.'; return render(); }
+      if (weakPin(a)){ L.err = 'Слишком простой PIN.'; return render(); }
+      if (a !== b){ L.err = 'Новый PIN не совпадает.'; return render(); }
+      L.busy = true; L.err = ''; render();
+      try { await unwrapPkcs8(pw, S.settings.security.wrap); }
+      catch (err){ L.busy = false; L.err = 'Неверный пароль клиники.'; return render(); }
+      const salt = b64(rnd(16));
+      Object.assign(S.settings.security, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(a, salt, PIN_ITER)});
+      saveSettings(); await flush();
+      S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0}; S.locked = false; lastAct = Date.now();
+      render(); toast('PIN изменён.'); autoBackup();
+      return;
+    }
+    case 'lock': return lockNow();
+    case 'nav-settings': S.ui.view = 'settings'; S.ui.modal = null; checkStorage().then(() => { if (S.ui.view === 'settings' && S.ui.stab === 'data') render(); }); render(); return window.scrollTo(0, 0);
+    case 'nav-home': S.ui.view = 'home'; render(); return window.scrollTo(0, 0);
+    case 'stab': S.ui.stab = el.dataset.tab; S.sec.pinErr = S.sec.pinOk = S.sec.pwErr = S.sec.pwOk = S.sec.delErr = ''; S.restore.err = ''; render(); return window.scrollTo(0, 0);
+    case 'retry-save': flush(); return;
+    case 'backup':
+      try { await makeBackup(false); } catch (err){ console.error(err); toast('Не удалось сохранить копию: ' + (err.message || err), 7000); }
+      return;
+    case 'persist': await askPersist(); await checkStorage(); render(); toast(S.persist ? 'Браузер будет хранить данные постоянно.' : 'Браузер пока не согласился. Установите программу как приложение и попробуйте ещё раз.', 6000); return;
+    case 'install': if (S.installEvt){ S.installEvt.prompt(); try { await S.installEvt.userChoice; } catch (err){} S.installEvt = null; render(); } return;
+    /* пациенты */
+    case 'new-patient': S.ui.edit = 'new'; S.ui.formErr = ''; S.ui.vid = null; render(); return window.scrollTo(0, 0);
+    case 'edit-patient': S.ui.edit = el.dataset.pid; S.ui.formErr = ''; render(); return window.scrollTo(0, 0);
+    case 'pf-cancel': { const was = S.ui.edit; S.ui.edit = null; S.ui.formErr = ''; if (was === 'new') S.ui.pid = S.ui.pid || null; render(); return; }
+    case 'pf-save': return savePatientForm();
+    case 'pf-delete': {
+      const p = pat(S.ui.edit); if (!p) return;
+      if (!confirm('Удалить пациента «' + fio(p) + '»? Незавершённые приёмы и планы этого пациента тоже удалятся.')) return;
+      visitsOf(p.id).forEach(x => { S.visits.delete(x.id); queueDel('visits', x.id); });
+      plansOf(p.id).forEach(x => { S.plans.delete(x.id); queueDel('plans', x.id); });
+      S.patients.delete(p.id); queueDel('patients', p.id);
+      S.ui.edit = null; S.ui.pid = null; S.ui.vid = null; render(); toast('Пациент удалён.'); return;
+    }
+    case 'open-patient': return openPatient(el.dataset.pid);
+    case 'open-visit': return openVisit(el.dataset.vid);
+    case 'back': S.ui.pid = null; S.ui.vid = null; S.ui.edit = null; render(); return;
+    case 'start-visit': { const sel = $('#start-proc'); return startVisit(el.dataset.pid, sel ? sel.value : ''); }
+    /* приём */
+    case 'map': {
+      if (!v || v.status === 'done') return;
+      const svg = el, pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+      const ctm = svg.getScreenCTM(); if (!ctm) return;
+      const q = pt.matrixTransform(ctm.inverse());
+      v.points.push({x: Math.round(Math.max(4, Math.min(196, q.x))), y: Math.round(Math.max(4, Math.min(236, q.y))), u: String(v.def || '')});
+      queue('visits', v); render(); return;
+    }
+    case 'pt-del': if (v && v.status !== 'done'){ v.points.splice(+el.dataset.i, 1); queue('visits', v); render(); } return;
+    case 'again': {
+      if (!v || v.status === 'done') return;
+      const h = lastSame(v); if (!h) return;
+      const got = [];
+      if (v.flags.drug && h.drug){ v.drug = h.drug; got.push('препарат'); }
+      if (v.flags.inject && h.points.length){ v.points = h.points.map(q => ({x: q.x, y: q.y, u: q.u})); got.push('схема уколов (' + h.points.length + ')'); }
+      if (h.diag){ v.diag = h.diag; got.push('жалобы и осмотр'); }
+      if (v.flags.memo && h.memo){ v.memo = h.memo; got.push('памятка'); }
+      v.copiedFrom = h.date; v.log.push({at: Date.now(), what: 'Заполнен по визиту ' + fmtDot(h.date)});
+      queue('visits', v); render();
+      toast('Перенесено из визита ' + fmtShort(h.date) + ': ' + got.join(', ') + '. Серию и срок годности впишите с новой упаковки.', 6500);
+      return;
+    }
+    case 'finish': {
+      if (!v || missing(v).length) return;
+      const again = (v.log || []).some(l => /Завершён/.test(l.what));
+      v.status = 'done'; v.doneAt = Date.now(); v.log.push({at: Date.now(), what: again ? 'Завершён после исправления' : 'Завершён'});
+      queue('visits', v); flush(); renderDatalists(); render();
+      toast('Визит завершён. Запись сохранена в карте.');
+      return;
+    }
+    case 'reopen': {
+      if (!v || v.status !== 'done') return;
+      if (!confirm('Открыть визит для исправления? В записи останется отметка, что её исправляли.')) return;
+      v.status = 'draft'; v.log.push({at: Date.now(), what: 'Открыт для исправления'});
+      queue('visits', v); render(); return;
+    }
+    case 'del-visit': {
+      if (!v || v.status === 'done') return;
+      if (!confirm('Удалить этот незавершённый приём? Всё, что в нём заполнено, удалится.')) return;
+      S.visits.delete(v.id); queueDel('visits', v.id);
+      S.ui.vid = null; render(); toast('Приём удалён.'); return;
+    }
+    case 'print-visit': return openModal({kind: 'visit', id: S.ui.vid, tab: el.dataset.tab});
+    case 'tpl': { const ta = document.querySelector('textarea[data-tpl="' + el.dataset.kind + '"]'), t = TPL.items[+el.dataset.i]; if (ta && t) applyTpl(ta, t); return; }
+    /* план и рекомендации */
+    case 'plan-new': {
+      const cur = curPlan(el.dataset.pid);
+      if (cur && !confirm('Начать новый план лечения? Текущий план от ' + (fmtDot(cur.from) || 'без даты') + ' сохранится в «Прошлых планах».')) return;
+      newPlan(el.dataset.pid); render(); return;
+    }
+    case 'plan-add': { const pl = planFor(el); if (!pl) return; pl.rows.push(R()); queue('plans', pl); render(); const f = document.querySelector('[data-f="plan"][data-plan="' + pl.id + '"][data-k="date"][data-i="' + (pl.rows.length - 1) + '"]'); if (f) f.focus(); return; }
+    case 'plan-del': { const pl = planFor(el); if (!pl) return; pl.rows.splice(+el.dataset.i, 1); queue('plans', pl); render(); return; }
+    case 'dir-add': { const pl = planFor(el); if (!pl) return; pl.dirs.push({date: '', dir: ''}); queue('plans', pl); render(); const f = document.querySelector('[data-f="dir"][data-plan="' + pl.id + '"][data-k="dir"][data-i="' + (pl.dirs.length - 1) + '"]'); if (f) f.focus(); return; }
+    case 'dir-del': { const pl = planFor(el); if (!pl) return; pl.dirs.splice(+el.dataset.i, 1); queue('plans', pl); render(); return; }
+    case 'cosm-add': { const pl = planFor(el); if (!pl) return; pl.cosm.push({name: '', rule: ''}); queue('plans', pl); render(); const f = document.querySelector('[data-f="cosm"][data-plan="' + pl.id + '"][data-k="name"][data-i="' + (pl.cosm.length - 1) + '"]'); if (f) f.focus(); return; }
+    case 'cosm-del': { const pl = planFor(el); if (!pl) return; pl.cosm.splice(+el.dataset.i, 1); queue('plans', pl); render(); return; }
+    case 'print-plan': flush(); return openModal({kind: 'plan', id: el.dataset.plan, tab: el.dataset.tab});
+    /* окно печати */
+    case 'tab': S.ui.modal.tab = el.dataset.tab; renderModal(); { const b = document.querySelector('#overlay [data-act="tab"][data-tab="' + el.dataset.tab + '"]'); if (b) b.focus(); } return;
+    case 'do-print': return doPrint();
+    case 'close': return closeModal();
+    /* настройки */
+    case 'img-del': S.settings.clinic[el.dataset.key] = ''; saveSettings(); render(); return;
+    case 'proc-add': S.settings.procs.push(Object.assign(proc(uid(), 'Новая процедура', true, false, '', 1, 0, ''), {memoOn: false})); saveSettings(); render(); return;
+    case 'proc-del': {
+      const i = +el.dataset.pi, p = S.settings.procs[i]; if (!p) return;
+      if (S.settings.procs.length <= 1){ toast('Должна остаться хотя бы одна процедура.'); return; }
+      if (!confirm('Удалить процедуру «' + p.name + '» из списка? Прошлые записи с ней останутся.')) return;
+      S.settings.procs.splice(i, 1); saveSettings(); render(); return;
+    }
+    case 'change-pin': {
+      const X = S.sec, sec = S.settings.security; X.pinErr = X.pinOk = '';
+      const cur = ($('#sp-cur') || {}).value || '', a = ($('#sp-new') || {}).value || '', b = ($('#sp-new2') || {}).value || '';
+      if (!/^\d{4,8}$/.test(a)){ X.pinErr = 'Новый PIN — от 4 до 8 цифр.'; return render(); }
+      if (weakPin(a)){ X.pinErr = 'Слишком простой PIN.'; return render(); }
+      if (a !== b){ X.pinErr = 'Новый PIN не совпадает.'; return render(); }
+      X.busy = true; render();
+      const ok = (await pinHash(cur, sec.pinSalt, sec.pinIter)) === sec.pinHash;
+      if (!ok){ X.busy = false; X.pinErr = 'Текущий PIN неверный.'; return render(); }
+      const salt = b64(rnd(16));
+      Object.assign(sec, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(a, salt, PIN_ITER)});
+      saveSettings(); await flush(); X.busy = false; X.pinOk = 'PIN изменён.'; return render();
+    }
+    case 'change-pw': {
+      const X = S.sec, sec = S.settings.security; X.pwErr = X.pwOk = '';
+      const cur = ($('#sw-cur') || {}).value || '', a = ($('#sw-new') || {}).value || '', b = ($('#sw-new2') || {}).value || '';
+      if (a.length < 8){ X.pwErr = 'Новый пароль — не короче 8 знаков.'; return render(); }
+      if (a !== b){ X.pwErr = 'Новый пароль не совпадает.'; return render(); }
+      X.busy = true; render();
+      let pkcs8;
+      try { pkcs8 = await unwrapPkcs8(cur, sec.wrap); } catch (err){ X.busy = false; X.pwErr = 'Текущий пароль клиники неверный.'; return render(); }
+      sec.wrap = await wrapPkcs8(a, pkcs8);
+      saveSettings(); await flush(); X.busy = false; X.pwOk = 'Пароль клиники изменён. Сохраните новую копию в разделе «Копии и данные».'; return render();
+    }
+    case 'wipe': {
+      const X = S.sec; X.delErr = '';
+      const pw = ($('#del-pw') || {}).value || '';
+      X.busy = true; render();
+      try { await unwrapPkcs8(pw, S.settings.security.wrap); } catch (err){ X.busy = false; X.delErr = 'Неверный пароль клиники.'; return render(); }
+      X.busy = false;
+      if (!confirm('Удалить всех пациентов, визиты, планы и настройки с этого компьютера?\n\nЭто нельзя отменить. Восстановить можно только из сохранённой копии.')) return render();
+      pending.clear(); await saving.catch(() => {});
+      await DB.write(STORES.map(s => ({op: 'clear', store: s})));
+      S.settings = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
+      S.ui = freshUi(); S.setup = freshSetup(); S.sec = {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false};
+      document.getElementById('datalists').innerHTML = '';
+      render(); toast('Все данные с этого компьютера удалены.'); return;
+    }
+  }
+}
+
+function onInput(e){
+  const t = e.target;
+  if (t.dataset.sf){ S.setup[t.dataset.sf] = t.value; return; }
+  const f = t.dataset.f; if (!f) return;
+  if (f === 'q'){ S.ui.q = t.value; const box = document.getElementById('side-list'); if (box) box.innerHTML = renderSideList(); return; }
+  if (f === 'plan'){ const pl = planFor(t); if (!pl) return; pl.rows[+t.dataset.i][t.dataset.k] = t.value; queue('plans', pl); return; }
+  if (f === 'dir' || f === 'cosm'){
+    const pl = planFor(t); if (!pl) return;
+    const row = pl[f === 'dir' ? 'dirs' : 'cosm'][+t.dataset.i]; row[t.dataset.k] = t.value;
+    if (f === 'cosm' && t.dataset.k === 'name'){
+      const hit = S.settings.lists.cosmetics.find(c => norm(c.name) === norm(t.value));
+      if (hit && hit.rule && !row.rule.trim()){ row.rule = hit.rule; const r = document.querySelector('[data-f="cosm"][data-plan="' + pl.id + '"][data-k="rule"][data-i="' + t.dataset.i + '"]'); if (r) r.value = hit.rule; }
+    }
+    queue('plans', pl); return;
+  }
+  if (f === 'pfrom'){ const pl = planFor(t); if (!pl) return; pl.from = t.value; queue('plans', pl); const l = document.querySelector('[data-linked="' + pl.id + '"]'); if (l) l.textContent = linkedLine(pl); return; }
+  const v = curVisit(); if (!v || v.status === 'done') return;
+  if (f === 'diag' || f === 'memo'){ v[f] = t.value; queue('visits', v); refreshFinish(v); showTpl(t); return; }
+  if (f === 'drug' || f === 'batch' || f === 'expiry'){ v[f] = t.value; queue('visits', v); refreshFinish(v); return; }
+  if (f === 'pt'){ const q = v.points[+t.dataset.i]; if (!q) return; q.u = t.value; queue('visits', v); const s = document.getElementById('total-num'); if (s) s.textContent = fmtNum(total(v)) + ' ' + v.unit; return; }
+}
+
+async function onChange(e){
+  const t = e.target;
+  if (t.dataset.rs === 'file'){ S.restore.file = t.files && t.files[0] || null; S.restore.err = ''; render(); return; }
+  if (t.dataset.s){
+    let val = t.type === 'checkbox' ? t.checked : t.value;
+    if (t.type === 'number' || t.dataset.numeric){ val = Math.round(num(val)); const mn = num(t.dataset.min || 0), mx = num(t.dataset.max || 9999); if (t.dataset.min) val = Math.max(mn, Math.min(mx, val)); t.value = val; }
+    else if (typeof val === 'string') val = val.trim();
+    if ((t.dataset.s === 'clinic.name' || t.dataset.s === 'doctor.fio') && !val){ toast('Это поле не может быть пустым.'); t.value = getPath(S.settings, t.dataset.s); return; }
+    setPath(S.settings, t.dataset.s, val); saveSettings();
+    if (/^(clinic\.name|doctor\.fio)$/.test(t.dataset.s)) render();
+    return;
+  }
+  if (t.dataset.list){ setPath(S.settings, t.dataset.list, parseList(t.dataset.list, t.value)); saveSettings(); renderDatalists(); return; }
+  if (t.dataset.p){
+    const p = S.settings.procs[+t.dataset.pi]; if (!p) return;
+    const k = t.dataset.p;
+    if (t.type === 'checkbox') p[k] = t.checked;
+    else if (k === 'step' || k === 'def') p[k] = Math.max(0, num(t.value));
+    else p[k] = k === 'memo' ? t.value.trim() : clean(t.value);
+    if (k === 'name' && !p.name){ p.name = 'Процедура'; t.value = p.name; }
+    saveSettings(); return;
+  }
+  if (t.dataset.img){
+    const file = t.files && t.files[0]; if (!file) return;
+    try { S.settings.clinic[t.dataset.img] = await readImage(file, t.dataset.img === 'qr' ? 400 : 600); saveSettings(); render(); }
+    catch (err){ toast(err.message || 'Не получилось загрузить картинку.'); }
+    return;
+  }
+  const f = t.dataset.f; if (!f) return;
+  if (f === 'ptype'){
+    const pl = planFor(t); if (!pl) return;
+    pl.type = +t.value;
+    if (pl.type > 0 && (!pl.from || pl.from < todayIso())){ pl.from = todayIso(); const d = document.querySelector('[data-f="pfrom"][data-plan="' + pl.id + '"]'); if (d) d.value = pl.from; }
+    queue('plans', pl);
+    const l = document.querySelector('[data-linked="' + pl.id + '"]'); if (l) l.textContent = linkedLine(pl);
+    return;
+  }
+  const v = curVisit(); if (!v || v.status === 'done') return;
+  if (f === 'check'){ v.checked[+t.dataset.i] = t.checked; queue('visits', v); refreshFinish(v); return; }
+  if (f === 'consent'){ v.consent = t.checked; queue('visits', v); refreshFinish(v); return; }
+}
+
+const ENTER_ACT = {'su-name': 'su-next', 'su-doctor': 'su-next', 'su-pin': 'su-next', 'su-pin2': 'su-next', 'su-pw': 'su-finish', 'su-pw2': 'su-finish',
+  'fg-pw': 'lk-reset', 'fg-pin': 'lk-reset', 'fg-pin2': 'lk-reset', 'rs-pw': 'restore', 'sp-cur': 'change-pin', 'sp-new': 'change-pin', 'sp-new2': 'change-pin',
+  'sw-cur': 'change-pw', 'sw-new': 'change-pw', 'sw-new2': 'change-pw'};
+function onKey(e){
+  if (e.key === 'Escape' && S.ui.modal){ closeModal(); return; }
+  if (e.key === 'Enter' && e.target.id && ENTER_ACT[e.target.id] && !e.isComposing){
+    const btn = document.querySelector('[data-act="' + ENTER_ACT[e.target.id] + '"]');
+    if (btn && !btn.disabled){ e.preventDefault(); if (e.target.dataset.sf) S.setup[e.target.dataset.sf] = e.target.value; btn.click(); }
+    return;
+  }
+  const ta = e.target; if (!ta.dataset || !ta.dataset.tpl || ta.dataset.tpl !== TPL.kind || !TPL.items.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault(); const n = TPL.items.length;
+    TPL.on = e.key === 'ArrowDown' ? (TPL.on + 1) % n : (TPL.on <= 0 ? n - 1 : TPL.on - 1); markTpl();
+  } else if ((e.key === 'Enter' || e.key === 'Tab') && TPL.on >= 0){ e.preventDefault(); applyTpl(ta, TPL.items[TPL.on]); }
+  else if (e.key === 'Escape'){ e.preventDefault(); hideTpl(); }
+}
+
+document.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('.tpl button')) e.preventDefault(); });
+document.addEventListener('click', e => { onClick(e).catch(err => { console.error(err); toast('Ошибка: ' + (err.message || err)); }); });
+document.addEventListener('input', onInput);
+document.addEventListener('change', e => { onChange(e).catch(err => { console.error(err); toast('Ошибка: ' + (err.message || err)); }); });
+document.addEventListener('keydown', onKey);
+document.addEventListener('submit', e => { const fm = e.target.closest('form[data-form="unlock"]'); if (!fm) return; e.preventDefault(); unlock((($('#lk-pin') || {}).value || '').trim()); });
+document.getElementById('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+window.addEventListener('pagehide', () => { flush(); });
+window.addEventListener('beforeunload', e => { if (pending.size || inFlight){ flush(); e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); S.installEvt = e; });
+
+/* ---------- запуск ---------- */
+function oneTab(){
+  // Одна вкладка — одна программа: две открытые копии могли бы перезаписать друг другу данные.
+  // При обновлении страницы старая вкладка отпускает замок не сразу, поэтому ждём до 3 секунд.
+  if (!navigator.locks || !navigator.locks.request) return Promise.resolve(true);
+  return new Promise(res => {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 3000);
+    navigator.locks.request('kirenix-klinika-open', {signal: ac.signal}, () => {
+      clearTimeout(timer); res(true);
+      return new Promise(() => {});   // держим, пока открыта вкладка
+    }).catch(err => { clearTimeout(timer); res(!(err && err.name === 'AbortError')); });
+  });
+}
+async function boot(){
+  if (!window.indexedDB || !window.crypto || !crypto.subtle){ S.fatal = 'browser'; return render(); }
+  if (!(await oneTab())){ S.fatal = 'tab'; return render(); }
+  try { await DB.open(); await loadAll(); }
+  catch (e){ console.error(e); S.fatal = 'db'; S.fatalMsg = String(e && e.message || e); return render(); }
+  S.locked = !!S.settings;
+  renderDatalists();
+  render();
+  checkStorage();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+    navigator.serviceWorker.register('sw.js').catch(err => console.warn('sw', err));
+  }
+}
+if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__kx = {S, flush, lockNow};   // только для проверок на этом компьютере
+boot();
+})();
+</script>
+</body>
+</html>
