@@ -297,6 +297,35 @@ details.old .list{margin-top:8px}
 .paper.blank th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;text-align:center;color:var(--gold-ink);vertical-align:middle;padding:6px 4px;overflow-wrap:anywhere;border:1px solid var(--gold)}
 .paper.blank td{border:1px solid var(--gold);height:26px;padding:4px 6px;overflow-wrap:anywhere;vertical-align:top}
 
+/* согласия на подпись */
+.paper.doc{font-size:13px;line-height:1.55}
+.paper.doc .doc-title{text-align:center;text-transform:uppercase;letter-spacing:.05em;font-size:15px;margin:6px 0 16px;line-height:1.35}
+.paper.doc p{margin:0 0 7px;text-align:justify}
+.paper.doc .sign{margin-top:30px}
+.fill-line{display:inline-block;max-width:100%;border-bottom:1px solid currentColor;height:1.05em;vertical-align:-2px}
+.paper .hint{font-size:11px;color:var(--paper-muted)}
+
+/* инструкция «Как работать» */
+.guide{max-width:860px;line-height:1.55}
+.guide h2{font-size:22px;margin-bottom:8px}
+.guide p{margin:0 0 8px}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin:14px 0 4px}
+.flow-box{border:1px solid var(--border);border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:2px;min-width:190px;background:var(--surface-2)}
+.flow-box b{font-size:15px}
+.flow-box span{font-size:12.5px;color:var(--muted)}
+.flow-box.accent{background:var(--accent-weak);border-color:var(--accent)}
+.flow-arrow{font-size:13px;color:var(--muted);font-weight:600}
+.g-sec{margin-top:24px;break-inside:avoid-page}
+.g-sec h3{font-size:17px;margin-bottom:10px}
+.g-steps{counter-reset:g;list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.g-steps > li{counter-increment:g;position:relative;padding-left:40px;break-inside:avoid}
+.g-steps > li::before{content:counter(g);position:absolute;left:0;top:-1px;width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-weight:700;font-size:13px}
+.g-steps ul,.g-sec > ul{margin:6px 0 4px;padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.kb{display:inline-block;border:1px solid var(--border);background:var(--surface);border-radius:7px;padding:0 8px;font-size:12.5px;font-weight:600;white-space:nowrap;line-height:1.6}
+.kb.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+/* в печати всегда светлые цвета, даже если на компьютере тёмная тема */
+#print-root{--bg:#fff;--surface:#fff;--surface-2:#EEF1F8;--text:#1A1A2E;--muted:#5E6476;--border:#C9CEDA;--accent:#3B5BDB;--accent-weak:#E8EDFF;--accent-ink:#2C46B8;--on-accent:#fff;color-scheme:light}
+
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:60;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:10px;font-size:13px;max-width:min(560px,calc(100% - 32px));box-shadow:var(--shadow)}
 #print-root{display:none}
 
@@ -347,6 +376,8 @@ details.old .list{margin-top:8px}
   #print-root .paper.blank.plan tbody td{height:min(12mm,calc(217mm / var(--rows,18)))}
   #print-root .paper.blank.recs tbody td{height:min(12mm,calc(193mm / var(--rows,14)))}
   #print-root .paper .sec,#print-root .paper .sign{break-inside:avoid}
+  #print-root .paper.guide{font-size:12.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #print-root .paper.guide .g-sec{margin-top:16px}
 }
 </style>
 </head>
@@ -364,7 +395,7 @@ details.old .list{margin-top:8px}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.0';
+const VERSION = '1.1';
 const DB_NAME = 'kirenix-klinika';
 const PIN_ITER = 150000;
 const PW_ITER = 310000;
@@ -411,10 +442,34 @@ const MEMO_BOTOX = 'В день процедуры не массировать �
 const MEMO_FILLER = 'Первые сутки не массировать зону коррекции и не спать лицом вниз. Две недели без бани и сауны. Контрольный осмотр через 14 дней.';
 const MEMO_BIO = 'В день процедуры не наносить декоративную косметику. Три дня без бани, сауны и бассейна. Следующая процедура курса через 2–3 недели.';
 const MEMO_PEEL = 'Каждый день наносить солнцезащитный крем SPF 50. Неделю не распаривать кожу. Не снимать отслаивающиеся корочки.';
-const proc = (id, name, drug, inject, unit, step, def, memo) => ({id, name, drug, inject, consent: drug, memoOn: !!memo, unit, step, def, drugName: '', memo: memo || ''});
+/* Образцы текстов согласий. Клиника сверяет их со своими и меняет в «Настройках → Документы». */
+const RISK_INJ = 'покраснение, отёк, синяки и болезненность в местах уколов, временные бугорки (папулы), аллергическая реакция';
+const RISKS = {
+  botox: 'покраснение, отёк и синяки в местах уколов, головная боль, временная асимметрия мимики, временное опущение века или брови, аллергическая реакция',
+  filler: 'покраснение, отёк, синяки и болезненность в зоне введения, уплотнения, асимметрия, аллергическая реакция; редко — воспаление и нарушение кровоснабжения тканей, при которых нужна срочная медицинская помощь',
+  biorev: RISK_INJ, meso: RISK_INJ,
+  peel: 'покраснение, жжение, шелушение, временное потемнение или посветление участков кожи, аллергическая реакция'
+};
+const PD_TEXT = [
+  'Согласие даю свободно, своей волей и в своём интересе, в соответствии со статьями 9 и 10 Федерального закона от 27.07.2006 № 152-ФЗ «О персональных данных».',
+  'Цель обработки: оказание мне медицинских услуг, ведение медицинской документации, запись на приём и связь со мной по вопросам оказания услуг.',
+  'Перечень данных: фамилия, имя, отчество; дата рождения; пол; адрес; паспортные данные; номер телефона; сведения о состоянии здоровья, в том числе о заболеваниях, проведённых процедурах, назначениях и рекомендациях.',
+  'Действия с данными: сбор, запись, систематизация, накопление, хранение, уточнение (обновление, изменение), извлечение, использование, передача в случаях, предусмотренных законодательством Российской Федерации, обезличивание, блокирование, удаление, уничтожение — с использованием средств автоматизации и без использования таких средств.',
+  'Сведения о моём здоровье обрабатывают медицинские работники Клиники, обязанные сохранять врачебную тайну.',
+  'Согласие действует до достижения целей обработки или до его отзыва. Я могу отозвать согласие, подав письменное заявление в Клинику. Медицинская документация после отзыва хранится в сроки, установленные законодательством.'
+].join('\n');
+const IDS_TEXT = [
+  'Специалист в доступной для меня форме разъяснил(а) мне цель, суть и порядок проведения процедуры, ожидаемый результат, противопоказания, возможные варианты вмешательства и их последствия, а также правила поведения после процедуры.',
+  'Я сообщил(а) достоверные сведения о своём здоровье: о заболеваниях, аллергии, принимаемых препаратах, беременности и кормлении грудью.',
+  'Я понимаю, что результат индивидуален, зависит от особенностей организма и образа жизни и что для его поддержания может понадобиться повторная процедура.',
+  'Я обязуюсь выполнять рекомендации специалиста после процедуры и сообщить в клинику, если почувствую ухудшение.',
+  'Мне дана возможность задать вопросы, и я получил(а) на них ответы. Согласие даю в соответствии со статьёй 20 Федерального закона от 21.11.2011 № 323-ФЗ «Об основах охраны здоровья граждан в Российской Федерации».'
+].join('\n');
+const proc = (id, name, drug, inject, unit, step, def, memo) => ({id, name, drug, inject, consent: drug, memoOn: !!memo, unit, step, def, drugName: '', memo: memo || '', risks: RISKS[id] || ''});
 const DEF = {
-  clinic: {name: '', careTitle: 'Отдел заботы', phone: '', site: '', logo: '', qr: ''},
+  clinic: {name: '', careTitle: 'Отдел заботы', phone: '', site: '', logo: '', qr: '', legal: ''},
   doctor: {fio: ''},
+  docs: {pd: PD_TEXT, ids: IDS_TEXT},
   procs: [
     proc('botox', 'Ботулинотерапия', true, true, 'ЕД', 1, 4, MEMO_BOTOX),
     proc('filler', 'Контурная пластика', true, true, 'мл', 0.1, 0.2, MEMO_FILLER),
@@ -478,14 +533,14 @@ const DEF = {
       {name: 'Восстанавливающая маска', rule: '2 раза в неделю на 15 минут'}
     ]
   },
-  req: {check: true, diag: true, batch: true, expiry: true},
+  req: {check: true, diag: true, batch: true, expiry: true, pd: true},
   blank: {planRows: 18, dirRows: 6, cosmRows: 8},
   security: {lockMin: 10},
   backup: {auto: true, lastAt: null, lastDay: null}
 };
 function withDefaults(s){
   const out = Object.assign(clone(DEF), s || {});
-  ['clinic', 'doctor', 'req', 'blank', 'security', 'backup', 'tpl', 'lists'].forEach(k => { out[k] = Object.assign(clone(DEF[k]), (s && s[k]) || {}); });
+  ['clinic', 'doctor', 'docs', 'req', 'blank', 'security', 'backup', 'tpl', 'lists'].forEach(k => { out[k] = Object.assign(clone(DEF[k]), (s && s[k]) || {}); });
   if (!Array.isArray(out.procs) || !out.procs.length) out.procs = clone(DEF.procs);
   if (!Array.isArray(out.checks)) out.checks = clone(DEF.checks);
   return out;
@@ -667,19 +722,20 @@ const str = v => (v == null ? '' : String(v));
 function imgSrc(s){ return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(s || '') ? s : ''; }
 function sanitizeData(d){
   const st = withDefaults(d.settings);
-  st.clinic.logo = imgSrc(st.clinic.logo); st.clinic.qr = imgSrc(st.clinic.qr);
-  st.procs = st.procs.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {step: num(p.step) || 1, def: num(p.def)}));
+  st.clinic.logo = imgSrc(st.clinic.logo); st.clinic.qr = imgSrc(st.clinic.qr); st.clinic.legal = str(st.clinic.legal);
+  st.docs = {pd: str(st.docs.pd), ids: str(st.docs.ids)};
+  st.procs = st.procs.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {step: num(p.step) || 1, def: num(p.def), name: str(p.name), memo: str(p.memo), risks: str(p.risks), drugName: str(p.drugName)}));
   if (!st.procs.length) st.procs = clone(DEF.procs);
   st.security.lockMin = [5, 10, 15, 30, 60].indexOf(+st.security.lockMin) >= 0 ? +st.security.lockMin : 10;
   ['planRows', 'dirRows', 'cosmRows'].forEach(k => { st.blank[k] = Math.max(1, Math.min(26, Math.round(num(st.blank[k])) || DEF.blank[k])); });
   if (!st.security.pinHash || !st.security.pinSalt || !st.security.wrap || !st.security.pub) throw userErr('В копии нет ключей программы.');
   const patients = d.patients.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {
-    last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж'}));
+    last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж', pdConsentAt: validIso(p.pdConsentAt) ? p.pdConsentAt : ''}));
   const pids = new Set(patients.map(p => p.id));
   const visits = d.visits.filter(v => v && ID_RE.test(v.id) && pids.has(v.pid) && validIso(v.date)).map(v => Object.assign(v, {
     time: /^\d{2}:\d{2}$/.test(v.time) ? v.time : '00:00', kind: v.kind === 'повторный' ? 'повторный' : 'первичный', status: v.status === 'done' ? 'done' : 'draft',
     procId: str(v.procId), procName: str(v.procName), unit: str(v.unit), step: num(v.step) || 1, def: num(v.def), doctor: str(v.doctor),
-    diag: str(v.diag), drug: str(v.drug), batch: str(v.batch), expiry: str(v.expiry), memo: str(v.memo), consent: !!v.consent,
+    diag: str(v.diag), dx: str(v.dx), drug: str(v.drug), batch: str(v.batch), expiry: str(v.expiry), memo: str(v.memo), consent: !!v.consent,
     flags: Object.assign({drug: false, inject: false, consent: false, memo: false}, v.flags),
     checklist: Array.isArray(v.checklist) ? v.checklist.map(str) : [], checked: Array.isArray(v.checked) ? v.checked.map(Boolean) : [],
     points: Array.isArray(v.points) ? v.points.map(q => ({x: Math.max(0, Math.min(200, num(q && q.x))), y: Math.max(0, Math.min(240, num(q && q.y))), u: str(q && q.u)})) : [],
@@ -834,9 +890,10 @@ function renderShell(){
   const st = S.settings;
   const head = '<header class="top"><div class="wrap"><div class="brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(st.clinic.name) + '</span></div></div>' +
     '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + esc(st.doctor.fio) + '</span>' +
-    (S.ui.view === 'settings' ? '<button type="button" class="btn small" data-act="nav-home">← К пациентам</button>' : '<button type="button" class="btn small" data-act="nav-settings">Настройки</button>') +
+    (S.ui.view === 'help' ? '' : '<button type="button" class="btn small" data-act="nav-help">Как работать</button>') +
+    (S.ui.view !== 'home' ? '<button type="button" class="btn small" data-act="nav-home">← К пациентам</button>' : '<button type="button" class="btn small" data-act="nav-settings">Настройки</button>') +
     '<button type="button" class="btn small" data-act="lock">' + ICON_LOCK + 'Заблокировать</button></div></div></header>';
-  const view = S.ui.view === 'settings' ? renderSettings() : renderHome();
+  const view = S.ui.view === 'settings' ? renderSettings() : S.ui.view === 'help' ? renderHelp() : renderHome();
   return head + '<main><div class="wrap">' + banners() + view + '</div></main>' +
     '<footer class="foot"><div class="wrap">Kirenix Клиника · версия ' + VERSION + ' · данные пациентов хранятся только на этом компьютере и никуда не передаются · поддержка: Telegram @aikiren</div></footer>';
 }
@@ -845,6 +902,7 @@ const IS_SAFARI = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS|E
 const SAFARI_WARN = '<div class="banner bad" role="alert"><span><b>Откройте программу в Google Chrome.</b> Safari стирает данные сайта, если его не открывать 7 дней, — карты пациентов могут пропасть.</span></div>';
 function banners(){
   let out = IS_SAFARI ? SAFARI_WARN : '';
+  if (!clean(S.settings.clinic.legal) && S.ui.view !== 'settings') out += '<div class="banner info"><span><b>Для согласий впишите полное название и адрес клиники.</b> Пока их нет, на согласиях будет пустая строка.</span><button type="button" class="btn small" data-act="goto-docs">Вписать</button></div>';
   if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место. Не закрывайте программу.</span><button type="button" class="btn small" data-act="retry-save">Сохранить ещё раз</button></div>';
   const b = S.settings.backup;
   if (S.patients.size){
@@ -900,14 +958,53 @@ function renderWelcome(){
   const pc = S.patients.size, vc = [...S.visits.values()].filter(v => v.status === 'done').length;
   return '<div class="card stack welcome"><div><h2>Здравствуйте!</h2><p class="muted">' + (pc ? 'Найдите пациента по фамилии слева или добавьте нового.' : 'Пациентов пока нет. Начните с кнопки «Новый пациент».') + '</p></div>' +
     '<div class="stats"><span class="chip neutral">Пациентов: ' + pc + '</span><span class="chip neutral">Завершённых визитов: ' + vc + '</span></div>' +
-    '<details' + (pc ? '' : ' open') + '><summary class="small" style="cursor:pointer;font-weight:600">Как работать</summary><ol>' +
-      '<li>«Новый пациент» — ФИО, дата рождения и анамнез. Телефон и паспорт сюда не вносятся: они остаются в системе записи клиники.</li>' +
-      '<li>В карте пациента выберите процедуру и нажмите «Начать приём».</li>' +
-      '<li>Заполните протокол по шагам. Если пациент уже был, нажмите «Как в прошлый раз» — останется вписать серию с новой упаковки.</li>' +
-      '<li>Визит закрывается, только когда заполнено всё обязательное. После этого можно распечатать запись о приёме для бумажной карты и памятку для пациента.</li>' +
-      '<li>План лечения и рекомендации заполняются в карте и печатаются на ваших бланках кнопкой «Бланк для печати».</li>' +
-      '<li>Раз в день программа сама сохраняет зашифрованную копию в папку «Загрузки».</li>' +
-    '</ol></details></div>';
+    '<p class="small">Запись пациентов и телефоны — в YCLIENTS, как раньше. Здесь — всё медицинское: карта, приём, согласия, план лечения и печать.</p>' +
+    '<div class="row"><button type="button" class="btn' + (pc ? '' : ' btn-primary') + '" data-act="nav-help">Как работать — по шагам</button></div></div>';
+}
+
+/* ---------- инструкция «Как работать»: по порядку, простыми словами ---------- */
+const kb = (t, primary) => '<span class="kb' + (primary ? ' primary' : '') + '">' + t + '</span>';
+function helpBody(){
+  return '<div class="guide-intro"><h2>Как работать в программе</h2>' +
+      '<p>Программа — медицинская карта для специалиста. Запись пациентов, телефоны и оплата остаются в YCLIENTS, как раньше. Всё медицинское — здесь: карта пациента, протокол процедуры, согласия, план лечения и рекомендации.</p>' +
+      '<div class="flow"><div class="flow-box"><b>YCLIENTS</b><span>запись, телефоны, оплата</span></div><div class="flow-arrow">пациент пришёл →</div>' +
+      '<div class="flow-box accent"><b>Kirenix Клиника</b><span>карта, приём, согласия, план, печать</span></div></div></div>' +
+    '<section class="g-sec"><h3>Один раз в начале</h3><ol class="g-steps">' +
+      '<li><b>Откройте программу в Google Chrome</b> на ноутбуке специалиста. Чтобы она открывалась отдельным окном, как обычная программа, нажмите в Chrome значок установки справа в адресной строке.</li>' +
+      '<li><b>Первый запуск.</b> Программа спросит название клиники, ФИО специалиста, потом PIN и пароль клиники. PIN — 4–8 цифр, специалист вводит его при каждом входе. Пароль клиники придумывает руководитель и записывает: он нужен, если забыли PIN или нужно восстановить данные. Мы этот пароль не знаем.</li>' +
+      '<li><b>Настройки.</b> Нажмите ' + kb('Настройки') + ': загрузите логотип и QR-код для бланков, впишите телефон. В разделе «Документы и согласия» впишите полное название и адрес клиники и проверьте тексты согласий.</li>' +
+    '</ol></section>' +
+    '<section class="g-sec"><h3>Как проходит приём — по порядку</h3><ol class="g-steps">' +
+      '<li><b>Запись.</b> Администратор записывает пациента в YCLIENTS, как обычно. В программе на этом шаге ничего делать не нужно.</li>' +
+      '<li><b>Пациент пришёл.</b> Специалист открывает программу и вводит PIN.</li>' +
+      '<li><b>Найдите пациента.</b> Слева в поле поиска начните писать фамилию — появится список. Пациент пришёл впервые? Нажмите ' + kb('+ Новый пациент', 1) + ' и заполните ФИО, дату рождения, аллергию и болезни. Телефон и паспорт не нужны.</li>' +
+      '<li><b>Начните приём.</b> Выберите процедуру и нажмите ' + kb('Начать приём', 1) + '. Шаги идут сверху вниз:<ul>' +
+        '<li>согласие на обработку персональных данных — только на первом визите: ' + kb('Распечатать согласие') + ', пациент вписывает паспорт и адрес от руки и подписывает, поставьте галочку;</li>' +
+        '<li>чек-лист перед процедурой — отметьте галочки;</li>' +
+        '<li>жалобы и осмотр — начните писать слово, и появятся готовые фразы, нажмите нужную;</li>' +
+        '<li>препарат, серия и срок годности — с упаковки;</li>' +
+        '<li>карта уколов — нажмите на схему лица там, где был укол, и впишите дозу;</li>' +
+        '<li>согласие на процедуру — ' + kb('Распечатать согласие') + ', пациент подписывает, поставьте галочку;</li>' +
+        '<li>памятка после процедуры — текст уже есть, можно поправить.</li>' +
+      '</ul>Всё сохраняется само, пока вы пишете.</li>' +
+      '<li><b>Завершите визит.</b> Нажмите ' + kb('Завершить визит', 1) + '. Если что-то не заполнено, программа напишет, чего не хватает.</li>' +
+      '<li><b>Распечатайте.</b> ' + kb('Запись о приёме') + ' — вклейте в бумажную медкарту (форма 025/у) и подпишите. ' + kb('Памятка') + ' — отдайте пациенту.</li>' +
+      '<li><b>План лечения и рекомендации — если нужны.</b> Ниже в карте пациента нажмите ' + kb('Составить план') + ', заполните строки и нажмите ' + kb('Бланк для печати') + '. Если вы прикрепляете планы в YCLIENTS, в окне печати выберите «Сохранить как PDF» и прикрепите файл в карточке клиента, как раньше.</li>' +
+    '</ol></section>' +
+    '<section class="g-sec"><h3>Пациент пришёл снова</h3><p>Найдите его по фамилии → ' + kb('Начать приём', 1) + ' → ' + kb('Как в прошлый раз', 1) + '. Препарат, схема уколов, осмотр и памятка заполнятся из прошлого визита. Впишите серию и срок годности с новой упаковки, распечатайте согласие на процедуру, проверьте и завершите визит.</p></section>' +
+    '<section class="g-sec"><h3>Если ошиблись</h3><p>Завершённый визит можно открыть кнопкой ' + kb('Исправить') + ' — в записи останется отметка, что её исправляли. Незавершённый приём можно удалить кнопкой «Удалить».</p></section>' +
+    '<section class="g-sec"><h3>Чтобы данные не потерялись</h3><ul>' +
+      '<li>Каждый день при первом входе программа сама сохраняет зашифрованную копию в папку «Загрузки». Раз в неделю переносите свежую копию на флешку.</li>' +
+      '<li>Не открывайте программу в режиме инкогнито и не очищайте в Chrome «Файлы cookie и другие данные сайтов» — так стираются карты. Если это случилось, восстановите данные из копии.</li>' +
+      '<li>Новый ноутбук: откройте программу на нём и на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
+      '<li>Уходите от компьютера — нажмите ' + kb('Заблокировать') + '. Через 10 минут без действий программа заблокируется сама.</li>' +
+      '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
+    '</ul></section>' +
+    '<section class="g-sec"><h3>Вопросы</h3><p>Пишите нам там, где вы с нами переписываетесь, или в Telegram @aikiren — поможем и поправим.</p></section>';
+}
+function renderHelp(){
+  return '<div class="row" style="justify-content:flex-end;margin-bottom:12px"><button type="button" class="btn" data-act="print-help">' + ICON_PRINT + 'Распечатать инструкцию</button>' +
+    '<button type="button" class="btn btn-primary" data-act="nav-home">К пациентам</button></div><div class="card guide">' + helpBody() + '</div>';
 }
 
 /* пациент: новый и изменение */
@@ -999,13 +1096,14 @@ function renderPatient(p){
   const start = draft
     ? '<div class="card"><div class="again" style="margin:0"><div><b>' + (draft.date === t ? 'Приём начат в ' + draft.time : 'Не завершён приём от ' + fmtLong(draft.date)) + '</b><span class="small">' + esc(draft.procName) + '</span></div><button type="button" class="btn btn-primary" data-act="open-visit" data-vid="' + draft.id + '">Продолжить приём</button></div></div>'
     : '<div class="card"><div class="start-visit"><label class="field">Процедура<select id="start-proc">' + procOptions(S.ui.lastProc) + '</select></label><button type="button" class="btn btn-primary" data-act="start-visit" data-pid="' + p.id + '">Начать приём</button></div></div>';
-  return '<div class="stack"><button type="button" class="btn back" data-act="back">← К списку</button>' + patientHead(p) + start + planCards(p) + '</div>';
+  return '<div class="stack"><button type="button" class="btn back" data-act="back">← К списку</button>' + patientHead(p) + start + docsCard(p) + planCards(p) + '</div>';
 }
 
 /* ---------- приём (протокол процедуры) ---------- */
 const total = v => v.points.reduce((s, q) => s + num(q.u), 0);
 function missing(v){
-  const r = S.settings.req, m = [];
+  const r = S.settings.req, m = [], pp = pat(v.pid);
+  if (r.pd && pp && !pp.pdConsentAt) m.push('согласие на обработку персональных данных');
   if (r.check && v.checklist.length && v.checklist.some((_, i) => !v.checked[i])) m.push('чек-лист перед процедурой');
   if (r.diag && !v.diag.trim()) m.push('жалобы и осмотр');
   if (v.flags.drug){
@@ -1039,7 +1137,7 @@ function startVisit(pid, procId){
     unit: pr.unit || '', step: num(pr.step) || 1, def: num(pr.def),
     kind: isRepeatPatient(p) ? 'повторный' : 'первичный',
     checklist: S.settings.checks.slice(), checked: S.settings.checks.map(() => false),
-    diag: '', drug: pr.drug ? (pr.drugName || lastDrugFor(pr.id) || '') : '', batch: '', expiry: '', points: [], consent: false,
+    diag: '', dx: '', drug: pr.drug ? (pr.drugName || lastDrugFor(pr.id) || '') : '', batch: '', expiry: '', points: [], consent: false,
     memo: pr.memoOn ? (pr.memo || '') : '', copiedFrom: null, status: 'draft', doneAt: null,
     doctor: S.settings.doctor.fio, log: [{at: Date.now(), what: 'Начат'}], createdAt: Date.now()};
   S.visits.set(v.id, v); queue('visits', v);
@@ -1068,6 +1166,7 @@ function tplField(kind, id, value, dis, label, hint){
 }
 function stepState(v){
   return {
+    pd: !!(pat(v.pid) || {}).pdConsentAt,
     check: !v.checklist.length || v.checklist.every((_, i) => v.checked[i]),
     diag: !!v.diag.trim(),
     drug: !!(v.drug.trim() && (v.batch.trim() || !S.settings.req.batch) && (v.expiry.trim() || !S.settings.req.expiry)),
@@ -1083,9 +1182,14 @@ function renderVisit(v){
   const done = stepState(v);
   const step = (key, n, title, body) => '<div class="step' + (done[key] ? ' done' : '') + '" data-step="' + key + '" data-n="' + n + '"><div class="step-n">' + (done[key] ? ICON_CHECK : n) + '</div><div style="min-width:0"><h3>' + title + '</h3>' + body + '</div></div>';
   const list = [];
+  if (!p.pdConsentAt || p.pdConsentAt === v.date) list.push(['pd', 'Согласие на обработку персональных данных',
+    '<p class="note" style="margin-bottom:8px">Подписывают один раз, на первом визите. Распечатайте согласие: паспорт и адрес пациент впишет от руки. Подписанный лист вложите в медкарту.</p>' +
+    '<div class="row"><button type="button" class="btn small" data-act="print-docs" data-pid="' + p.id + '" data-tab="pd">' + ICON_PRINT + 'Распечатать согласие</button></div>' +
+    '<div class="checks" style="margin-top:8px"><label><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (p.pdConsentAt ? ' checked' : '') + dis + '><span>Пациент подписал согласие на обработку персональных данных</span></label></div>']);
   if (v.checklist.length) list.push(['check', 'Перед процедурой', '<div class="checks">' + v.checklist.map((c, i) => '<label><input type="checkbox" data-f="check" data-i="' + i + '"' + (v.checked[i] ? ' checked' : '') + dis + '><span>' + esc(c) + '</span></label>').join('') + '</div>']);
   list.push(['diag', 'Жалобы и осмотр', tplField('diag', 'diag-' + v.id, v.diag, dis, 'Что беспокоит пациента и что видит специалист',
-    'Начните писать слово (например, «морщ», «сух» или «кожа») — появятся готовые фразы. Свои фразы добавляются в настройках.')]);
+    'Начните писать слово (например, «морщ», «сух» или «кожа») — появятся готовые фразы. Свои фразы добавляются в настройках.') +
+    '<div style="margin-top:10px">' + field('Диагноз — если ставите (можно с кодом МКБ-10)', '<input type="text" data-f="dx" id="dx-' + v.id + '" value="' + esc(v.dx || '') + '" autocomplete="off"' + dis + '>') + '</div>']);
   if (v.flags.drug) list.push(['drug', 'Препарат', '<div class="grid3">' +
     field('Название', '<input type="text" id="drug-' + v.id + '" data-f="drug" list="dl-drug" value="' + esc(v.drug) + '" autocomplete="off"' + dis + '>') +
     field('Серия', '<input type="text" id="batch-' + v.id + '" data-f="batch" value="' + esc(v.batch) + '" autocomplete="off"' + dis + '>') +
@@ -1098,7 +1202,9 @@ function renderVisit(v){
       '<div class="stack"><div class="pts">' + (pts || '<p class="muted small">Уколов пока нет</p>') + '</div>' +
       '<div class="total">Всего: <span class="num" id="total-num">' + fmtNum(total(v)) + ' ' + esc(v.unit) + '</span></div></div></div>']);
   }
-  if (v.flags.consent) list.push(['consent', 'Согласие на процедуру', '<div class="checks"><label><input type="checkbox" data-f="consent"' + (v.consent ? ' checked' : '') + dis + '><span>Пациент подписал информированное добровольное согласие на «' + esc(v.procName) + '»</span></label></div>']);
+  if (v.flags.consent) list.push(['consent', 'Согласие на процедуру',
+    '<div class="row" style="margin-bottom:8px"><button type="button" class="btn small" data-act="print-docs" data-pid="' + p.id + '" data-tab="ids" data-proc="' + esc(v.procId) + '" data-date="' + v.date + '">' + ICON_PRINT + 'Распечатать согласие</button></div>' +
+    '<div class="checks"><label><input type="checkbox" data-f="consent"' + (v.consent ? ' checked' : '') + dis + '><span>Пациент подписал информированное добровольное согласие на «' + esc(v.procName) + '»</span></label></div>']);
   if (v.flags.memo) list.push(['memo', 'Памятка после процедуры', tplField('memo', 'memo-' + v.id, v.memo, dis, 'Шаблон клиники для этой процедуры, можно изменить',
     'Шаблоны появляются и здесь, когда начинаете писать слово (например, «бан» или «осмотр»). Памятку можно распечатать для пациента после завершения визита.')]);
   const steps = list.map((s, i) => step(s[0], i + 1, s[1], s[2])).join('');
@@ -1253,7 +1359,7 @@ const secP = (title, text) => '<div class="sec"><b>' + title + '</b><p>' + (text
 function paperTop(right){
   const c = S.settings.clinic;
   const logo = imgSrc(c.logo);
-  return '<div class="rec-top"><div>' + (logo ? '<img src="' + logo + '" alt="">' : '<b>' + esc(c.name) + '</b>') + '</div><div class="small" style="text-align:right">' + right + '</div></div>';
+  return '<div class="rec-top"><div>' + (logo ? '<img src="' + logo + '" alt="">' : '<b>' + esc(c.name) + '</b>') + '</div>' + (right ? '<div class="small" style="text-align:right">' + right + '</div>' : '') + '</div>';
 }
 function recPaper(v, p){
   const pts = v.points.map(q => '<li>' + fmtNum(num(q.u)) + ' ' + esc(v.unit) + '</li>').join('');
@@ -1264,8 +1370,10 @@ function recPaper(v, p){
     (p.card ? lineItem('№ медицинской карты', esc(p.card)) : '') +
     lineItem('Специалист', esc(v.doctor)) +
     secP('Жалобы и осмотр', v.diag) +
+    (v.dx && v.dx.trim() ? secP('Диагноз', v.dx) : '') +
     (v.flags.drug ? secP('Препарат', [v.drug, v.batch ? 'серия ' + v.batch : '', v.expiry ? 'годен до ' + v.expiry : ''].filter(Boolean).join(', ')) : '') +
     (v.flags.inject ? '<div class="sec"><b>Введено</b><div class="rec-map">' + faceSvgPrint(v) + '<div><p><strong>Всего: ' + fmtNum(total(v)) + ' ' + esc(v.unit) + '</strong>, точек введения: ' + v.points.length + '</p><ol>' + pts + '</ol></div></div></div>' : '') +
+    (p.pdConsentAt ? secP('Согласие на обработку персональных данных', 'подписано ' + fmtDot(p.pdConsentAt)) : '') +
     (v.flags.consent ? secP('Информированное добровольное согласие', v.consent ? 'подписано' : 'не подписано') : '') +
     (v.flags.memo ? secP('Рекомендации после процедуры', v.memo) : '') +
     '<div class="sign"><span>Дата: ' + fmtDot(v.date) + '</span><span>Специалист: ____________ / ' + esc(shortName(v.doctor)) + '</span></div>' +
@@ -1275,12 +1383,49 @@ function recPaper(v, p){
 function memoPaper(v, p){
   const c = S.settings.clinic;
   const items = lines(v.memo).reduce((a, l) => a.concat(l.split(/(?<=[.!?])\s+(?=[А-ЯЁA-Z0-9«])/)), []).filter(Boolean);
-  return '<div class="paper memo">' + paperTop(esc(c.name)) +
+  return '<div class="paper memo">' + paperTop([c.careTitle, c.phone].filter(x => x && String(x).trim()).map(esc).join('<br>')) +
     '<h4>Памятка после процедуры</h4><div class="sub">' + esc(v.procName) + ' · ' + fmtLong(v.date) + '</div>' +
     lineItem('Пациент', esc(fio(p))) +
     '<ul>' + items.map(s => '<li>' + esc(s) + '</li>').join('') + '</ul>' +
     (c.phone ? '<p class="foot-note">Если что-то беспокоит — позвоните нам' + (c.careTitle ? ' (' + esc(c.careTitle) + ')' : '') + ': ' + esc(c.phone) + '</p>' : '') +
     '<div class="sign"><span>Специалист: ' + esc(shortName(v.doctor)) + '</span><span>Дата: ' + fmtDot(v.date) + '</span></div></div>';
+}
+
+/* согласия на подпись: начало и подписи программа ставит сама, середина — текст клиники из настроек */
+const fillLine = mm => '<span class="fill-line" style="min-width:' + mm + 'mm"></span>';
+const paras = text => lines(text).map(t => '<p>' + esc(t) + '</p>').join('');
+function pdPaper(p){
+  const legal = clean(S.settings.clinic.legal);
+  return '<div class="paper doc">' + paperTop('') +
+    '<h4 class="doc-title">Согласие на обработку персональных данных</h4>' +
+    '<p>Я, ' + (p ? '<b>' + esc(fio(p)) + '</b>' : fillLine(100)) + ', ' + (p && p.birth ? fmtDot(p.birth) : fillLine(26)) + ' г. р.,</p>' +
+    '<p>паспорт: серия ' + fillLine(16) + ' № ' + fillLine(28) + ' выдан ' + fillLine(78) + '</p>' +
+    '<p>дата выдачи ' + fillLine(26) + ', адрес регистрации: ' + fillLine(98) + '</p>' +
+    '<p>' + fillLine(170) + '</p>' +
+    '<p>даю ' + (legal ? '<b>' + esc(legal) + '</b>' : fillLine(120) + ' <span class="hint">(название и адрес клиники)</span>') + ' (далее — Клиника) согласие на обработку моих персональных данных на следующих условиях.</p>' +
+    paras(S.settings.docs.pd) +
+    '<div class="sign"><span>Дата: ' + (p ? fmtDot(todayIso()) : fillLine(26)) + '</span><span>Подпись: ____________ / ' + (p ? esc(shortName(fio(p))) : fillLine(36)) + '</span></div></div>';
+}
+function idsPaper(p, pr, date){
+  const ps = lines(S.settings.docs.ids);
+  const risks = pr ? clean(pr.risks).replace(/[.;]+$/, '') : '';
+  const riskP = '<p>Мне разъяснены возможные побочные эффекты и осложнения этой процедуры: ' + (risks ? esc(risks) + '.' : fillLine(150)) + '</p>';
+  return '<div class="paper doc">' + paperTop('') +
+    '<h4 class="doc-title">Информированное добровольное согласие<br>на медицинское вмешательство</h4>' +
+    '<p>Я, ' + (p ? '<b>' + esc(fio(p)) + '</b>' : fillLine(100)) + ', ' + (p && p.birth ? fmtDot(p.birth) : fillLine(26)) + ' г. р., даю информированное добровольное согласие на проведение мне процедуры ' +
+      (pr ? '<b>«' + esc(pr.name) + '»</b>' : fillLine(80)) + '.</p>' +
+    (ps.length ? '<p>' + esc(ps[0]) + '</p>' + riskP + ps.slice(1).map(t => '<p>' + esc(t) + '</p>').join('') : riskP) +
+    '<div class="sign"><span>Пациент: ____________ / ' + (p ? esc(shortName(fio(p))) : fillLine(36)) + '</span><span>Дата: ' + (p && date ? fmtDot(date) : fillLine(26)) + '</span></div>' +
+    '<div class="sign" style="margin-top:16px"><span>Специалист: ____________ / ' + esc(shortName(S.settings.doctor.fio)) + '</span><span></span></div></div>';
+}
+const EMPTY_PLAN = {type: -1, from: '', rows: [], dirs: [], cosm: []};
+function docsCard(p){
+  const ok = !!p.pdConsentAt;
+  return '<section class="card stack" aria-label="Согласия на подпись"><div class="card-head"><div><h2 style="font-size:17px">Согласия на подпись</h2>' +
+      '<p class="note" style="margin-top:3px">Согласие на обработку персональных данных подписывают один раз, на первом визите. Согласие на процедуру — на каждом приёме, кнопка есть в протоколе.</p></div>' +
+      '<button type="button" class="btn" data-act="print-docs" data-pid="' + p.id + '" data-tab="pd">' + ICON_PRINT + 'Распечатать согласие</button></div>' +
+    '<label class="checkline"><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (ok ? ' checked' : '') + '><span>' +
+      (ok ? 'Согласие на обработку персональных данных подписано ' + fmtDot(p.pdConsentAt) : 'Пациент подписал согласие на обработку персональных данных') + '</span></label></section>';
 }
 
 /* окно печати */
@@ -1296,6 +1441,17 @@ function renderModal(){
     tabs = [['plan', 'План лечения'], ['recs', 'Рекомендации']];
     paper = M.tab === 'recs' ? recsPaper(pl, p) : planPaper(pl, p);
     note = 'Бланк печатается на одном листе А4. В окне печати можно выбрать «Сохранить как PDF».';
+  } else if (M.kind === 'docs'){
+    const p = M.pid ? pat(M.pid) : null;
+    if (M.pid && !p){ S.ui.modal = null; return renderModal(); }
+    const pr = M.proc === '' ? null : (procById(M.proc) || S.settings.procs.find(x => x.consent) || S.settings.procs[0]);
+    title = p ? fio(p) : 'Пустые бланки'; sub = p ? 'Документы на подпись' : 'Для заполнения от руки';
+    tabs = [['ids', 'Согласие на процедуру'], ['pd', 'Согласие на обработку данных']].concat(p ? [] : [['plan', 'План лечения'], ['recs', 'Рекомендации']]);
+    const pick = '<label class="field" style="max-width:340px">Процедура<select data-f="docproc">' + procOptions(pr && pr.id) + '<option value=""' + (pr ? '' : ' selected') + '>— вписать от руки —</option></select></label>';
+    paper = M.tab === 'pd' ? pdPaper(p) : M.tab === 'plan' ? planPaper(EMPTY_PLAN, null) : M.tab === 'recs' ? recsPaper(EMPTY_PLAN, null) : idsPaper(p, pr, M.date || todayIso());
+    if (M.tab === 'ids') paper = pick + '<div style="height:10px"></div>' + paper;
+    note = M.tab === 'pd' ? 'Паспорт и адрес пациент вписывает от руки — в программе их нет. Подписанный лист вложите в медкарту.'
+      : M.tab === 'ids' ? 'Пациент и специалист подписывают, лист вкладывается в медкарту. Текст меняется в «Настройках → Документы».' : 'Пустой бланк заполняется от руки.';
   } else {
     const v = vis(M.id), p = v && pat(v.pid);
     if (!p){ S.ui.modal = null; return renderModal(); }
@@ -1317,21 +1473,36 @@ function closeModal(){ S.ui.modal = null; renderModal(); }
 function doPrint(){
   const paper = $('#paper'); if (!paper) return;
   const root = document.getElementById('print-root');
-  root.innerHTML = paper.innerHTML;
+  const sheet = paper.querySelector('.paper');
+  root.innerHTML = sheet ? sheet.outerHTML : paper.innerHTML;
   setTimeout(() => { try { window.print(); } catch (e){ toast('Печать не открылась. Нажмите Ctrl+P.'); } }, 50);
 }
 window.addEventListener('afterprint', () => { const r = document.getElementById('print-root'); if (r) r.innerHTML = ''; });
 
 /* ---------- настройки ---------- */
-const STABS = [['clinic', 'Клиника и бланки'], ['procs', 'Процедуры'], ['protocol', 'Протокол и шаблоны'], ['lists', 'Списки для бланков'], ['security', 'PIN и пароль'], ['data', 'Копии и данные']];
+const STABS = [['clinic', 'Клиника и бланки'], ['docs', 'Документы и согласия'], ['procs', 'Процедуры'], ['protocol', 'Протокол и шаблоны'], ['lists', 'Списки для бланков'], ['security', 'PIN и пароль'], ['data', 'Копии и данные']];
 function renderSettings(){
   const nav = '<nav class="snav" aria-label="Разделы настроек">' + STABS.map(t => '<button type="button" data-act="stab" data-tab="' + t[0] + '" aria-current="' + (S.ui.stab === t[0]) + '">' + t[1] + '</button>').join('') + '</nav>';
-  const body = ({clinic: setClinic, procs: setProcs, protocol: setProtocol, lists: setLists, security: setSecurity, data: setData}[S.ui.stab] || setClinic)();
+  const body = ({clinic: setClinic, docs: setDocs, procs: setProcs, protocol: setProtocol, lists: setLists, security: setSecurity, data: setData}[S.ui.stab] || setClinic)();
   return '<div class="page-head"><div><h2>Настройки</h2><p>Изменения сохраняются сами, когда переходите к следующему полю.</p></div></div><div class="settings">' + nav + '<div class="stack">' + body + '</div></div>';
 }
 const sText = (label, path, cls, ph) => field(label, '<input type="text" data-s="' + path + '" value="' + esc(getPath(S.settings, path)) + '" autocomplete="off"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>', false, cls);
 const sNum = (label, path, min, max) => field(label, '<input type="number" data-s="' + path + '" data-min="' + min + '" data-max="' + max + '" min="' + min + '" max="' + max + '" value="' + esc(getPath(S.settings, path)) + '">');
 const sList = (label, path, hint, rows) => field(label, '<textarea data-list="' + path + '" rows="' + (rows || 6) + '">' + esc((getPath(S.settings, path) || []).join('\n')) + '</textarea>') + (hint ? '<p class="note">' + hint + '</p>' : '');
+const sArea = (label, path, rows) => field(label, '<textarea data-s="' + path + '" rows="' + (rows || 6) + '">' + esc(getPath(S.settings, path)) + '</textarea>');
+function setDocs(){
+  return '<section class="card stack"><div class="banner info" style="margin:0"><span><b>Тексты согласий — образцы.</b> Сверьте их с документами клиники или вставьте свои. За содержание согласий отвечает клиника.</span></div>' +
+      sArea('Полное название и адрес клиники — печатаются в согласии на обработку данных', 'clinic.legal', 3) +
+      '<p class="note">Например: ООО «Название», ИНН 0000000000, адрес: г. Казань, ул. Примерная, д. 1. Как в лицензии.</p></section>' +
+    '<section class="card stack"><h3>Согласие на обработку персональных данных</h3>' + sArea('Условия согласия, каждый абзац с новой строки', 'docs.pd', 12) +
+      '<p class="note">Начало (ФИО, дату рождения, строки для паспорта и адреса, название клиники) и подпись программа ставит сама.</p>' +
+      '<div class="row"><button type="button" class="btn small" data-act="doc-reset" data-key="pd">Вернуть образец</button></div></section>' +
+    '<section class="card stack"><h3>Информированное согласие на процедуру</h3>' + sArea('Общий текст для всех процедур, каждый абзац с новой строки', 'docs.ids', 10) +
+      '<p class="note">После первого абзаца программа вставляет возможные осложнения выбранной процедуры — они задаются в разделе «Процедуры». Начало с ФИО и подписи пациента и специалиста ставятся сами.</p>' +
+      '<div class="row"><button type="button" class="btn small" data-act="doc-reset" data-key="ids">Вернуть образец</button></div></section>' +
+    '<section class="card stack"><h3>Пустые бланки</h3><p class="small">Согласия, «План лечения» и «Рекомендации» без данных пациента — чтобы заполнить от руки.</p>' +
+      '<div class="row"><button type="button" class="btn" data-act="print-blanks">' + ICON_PRINT + 'Открыть пустые бланки</button></div></section>';
+}
 const sCheck = (label, path) => '<label class="checkline"><input type="checkbox" data-s="' + path + '"' + (getPath(S.settings, path) ? ' checked' : '') + '><span>' + label + '</span></label>';
 function imgPick(key, label, square){
   const src = imgSrc(S.settings.clinic[key]);
@@ -1367,6 +1538,7 @@ function setProcs(){
     '</div>' +
     field('Препарат по умолчанию', '<input type="text" data-p="drugName" data-pi="' + i + '" value="' + esc(p.drugName) + '" placeholder="если пусто — подставится препарат прошлого такого визита">') +
     field('Шаблон памятки', '<textarea rows="3" data-p="memo" data-pi="' + i + '">' + esc(p.memo) + '</textarea>') +
+    field('Возможные осложнения — печатаются в согласии на эту процедуру', '<textarea rows="2" data-p="risks" data-pi="' + i + '">' + esc(p.risks || '') + '</textarea>') +
     '<div class="row end"><button type="button" class="btn small btn-ghost btn-danger" data-act="proc-del" data-pi="' + i + '">Удалить процедуру</button></div></div>').join('');
   return '<section class="card stack"><div class="card-head"><div><h3>Процедуры</h3><p class="note" style="margin-top:3px">Что спрашивает протокол для каждой процедуры. Изменения касаются новых приёмов, прошлые записи не меняются.</p></div>' +
     '<button type="button" class="btn" data-act="proc-add">+ Добавить процедуру</button></div>' + items + '</section>';
@@ -1375,6 +1547,7 @@ function setProtocol(){
   return '<section class="card stack"><h3>Чек-лист перед процедурой</h3>' + sList('Пункты чек-листа', 'checks', 'Каждый пункт — с новой строки. Изменения касаются новых приёмов.', 5) + '</section>' +
     '<section class="card stack"><h3>Без чего нельзя завершить визит</h3><div class="stack-sm">' +
       sCheck('Отмечены все пункты чек-листа', 'req.check') + sCheck('Заполнены жалобы и осмотр', 'req.diag') +
+      sCheck('Отмечено согласие пациента на обработку персональных данных', 'req.pd') +
       sCheck('Записана серия препарата', 'req.batch') + sCheck('Записан срок годности препарата', 'req.expiry') +
       '<p class="note">Препарат, отметки уколов, согласие и памятка обязательны для тех процедур, где они включены (раздел «Процедуры»).</p></div></section>' +
     '<section class="card stack"><h3>Шаблоны фраз</h3><p class="note">Появляются, когда специалист начинает писать слово. Каждая фраза — с новой строки.</p>' +
@@ -1608,7 +1781,7 @@ async function onClick(e){
         st.security.pub = keys.pub; st.security.wrap = keys.wrap;
         st.createdAt = Date.now();
         await DB.write([{op: 'put', store: 'kv', value: {k: 'settings', v: st}}]);
-        S.settings = st; S.setup = freshSetup(); S.locked = false; lastAct = Date.now();
+        S.settings = st; S.setup = freshSetup(); S.locked = false; lastAct = Date.now(); S.ui.view = 'help';
         renderDatalists(); render();
         toast('Готово. Можно добавлять пациентов.', 4500);
         askPersist().then(checkStorage);
@@ -1677,7 +1850,7 @@ async function onClick(e){
       const got = [];
       if (v.flags.drug && h.drug){ v.drug = h.drug; got.push('препарат'); }
       if (v.flags.inject && h.points.length){ v.points = h.points.map(q => ({x: q.x, y: q.y, u: q.u})); got.push('схема уколов (' + h.points.length + ')'); }
-      if (h.diag){ v.diag = h.diag; got.push('жалобы и осмотр'); }
+      if (h.diag){ v.diag = h.diag; v.dx = h.dx || v.dx || ''; got.push('жалобы и осмотр'); }
       if (v.flags.memo && h.memo){ v.memo = h.memo; got.push('памятка'); }
       v.copiedFrom = h.date; v.log.push({at: Date.now(), what: 'Заполнен по визиту ' + fmtDot(h.date)});
       queue('visits', v); render();
@@ -1719,6 +1892,12 @@ async function onClick(e){
     case 'cosm-add': { const pl = planFor(el); if (!pl) return; pl.cosm.push({name: '', rule: ''}); queue('plans', pl); render(); const f = document.querySelector('[data-f="cosm"][data-plan="' + pl.id + '"][data-k="name"][data-i="' + (pl.cosm.length - 1) + '"]'); if (f) f.focus(); return; }
     case 'cosm-del': { const pl = planFor(el); if (!pl) return; pl.cosm.splice(+el.dataset.i, 1); queue('plans', pl); render(); return; }
     case 'print-plan': flush(); return openModal({kind: 'plan', id: el.dataset.plan, tab: el.dataset.tab});
+    case 'print-docs': flush(); return openModal({kind: 'docs', pid: el.dataset.pid, tab: el.dataset.tab, proc: el.dataset.proc, date: el.dataset.date});
+    case 'print-blanks': return openModal({kind: 'docs', pid: null, tab: 'ids'});
+    case 'nav-help': S.ui.view = 'help'; S.ui.modal = null; render(); return window.scrollTo(0, 0);
+    case 'goto-docs': S.ui.view = 'settings'; S.ui.stab = 'docs'; render(); return window.scrollTo(0, 0);
+    case 'print-help': { const root = document.getElementById('print-root'); root.innerHTML = '<div class="paper guide">' + helpBody() + '</div>'; setTimeout(() => { try { window.print(); } catch (err){ toast('Печать не открылась. Нажмите Ctrl+P.'); } }, 50); return; }
+    case 'doc-reset': { const k = el.dataset.key; if (!confirm('Вернуть образец текста? Ваш текст заменится.')) return; S.settings.docs[k] = DEF.docs[k]; saveSettings(); render(); toast('Образец возвращён.'); return; }
     /* окно печати */
     case 'tab': S.ui.modal.tab = el.dataset.tab; renderModal(); { const b = document.querySelector('#overlay [data-act="tab"][data-tab="' + el.dataset.tab + '"]'); if (b) b.focus(); } return;
     case 'do-print': return doPrint();
@@ -1791,7 +1970,7 @@ function onInput(e){
   if (f === 'pfrom'){ const pl = planFor(t); if (!pl) return; pl.from = t.value; queue('plans', pl); const l = document.querySelector('[data-linked="' + pl.id + '"]'); if (l) l.textContent = linkedLine(pl); return; }
   const v = curVisit(); if (!v || v.status === 'done') return;
   if (f === 'diag' || f === 'memo'){ v[f] = t.value; queue('visits', v); refreshFinish(v); showTpl(t); return; }
-  if (f === 'drug' || f === 'batch' || f === 'expiry'){ v[f] = t.value; queue('visits', v); refreshFinish(v); return; }
+  if (f === 'drug' || f === 'batch' || f === 'expiry' || f === 'dx'){ v[f] = t.value; queue('visits', v); refreshFinish(v); return; }
   if (f === 'pt'){ const q = v.points[+t.dataset.i]; if (!q) return; q.u = t.value; queue('visits', v); const s = document.getElementById('total-num'); if (s) s.textContent = fmtNum(total(v)) + ' ' + v.unit; return; }
 }
 
@@ -1824,6 +2003,8 @@ async function onChange(e){
     return;
   }
   const f = t.dataset.f; if (!f) return;
+  if (f === 'docproc'){ if (S.ui.modal){ S.ui.modal.proc = t.value; renderModal(); const sel = document.querySelector('#overlay [data-f="docproc"]'); if (sel) sel.focus(); } return; }
+  if (f === 'pdc'){ const p = pat(t.dataset.pid); if (!p) return; p.pdConsentAt = t.checked ? todayIso() : ''; queue('patients', p); render(); return; }
   if (f === 'ptype'){
     const pl = planFor(t); if (!pl) return;
     pl.type = +t.value;
