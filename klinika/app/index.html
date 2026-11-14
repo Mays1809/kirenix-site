@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-GybSxxq9oiyjXq/jX3F7ueSRWlfq5+pyZ6rRmLTFo/0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -122,6 +122,7 @@ textarea{resize:vertical;min-height:84px;line-height:1.45}
 .steps-dots span{height:4px;flex:1;border-radius:4px;background:var(--surface-2)}
 .steps-dots span.on{background:var(--accent)}
 .pin-input{font-size:22px!important;letter-spacing:.35em;text-align:center;font-family:var(--mono)}
+.secret{-webkit-text-security:disc}
 .gate .linkish{background:none;border:0;padding:0;color:var(--accent-ink);font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:2px}
 .fatal{max-width:560px}
 
@@ -507,15 +508,21 @@ table.rep td:first-child{font-weight:600}
 <script>
 /* Kirenix Клиника — рабочая версия для одного специалиста.
    Всё хранится в этом браузере (IndexedDB). Никаких запросов наружу: адрес сайта нужен только чтобы открыть программу.
+   С версии 1.3 карты пациентов лежат в IndexedDB зашифрованными: ключ данных (AES-GCM 256) открывается PIN-кодом
+   (PBKDF2, 600 000 повторов) или, если PIN забыли, закрытым ключом клиники. После блокировки ключ и данные стираются из памяти.
    Копии шифруются открытым ключом клиники (ECDH P-256 + AES-GCM); закрытый ключ зашифрован паролем клиники (PBKDF2). */
 (function(){
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.2';
+const VERSION = '1.3';
 const DB_NAME = 'kirenix-klinika';
-const PIN_ITER = 150000;
-const PW_ITER = 310000;
+const KEK_ITER = 600000;      // PIN → ключ, которым зашифрован ключ данных
+const PW_ITER = 600000;       // пароль клиники → ключ, которым зашифрован закрытый ключ клиники (старые копии: 310 000)
+const HARD_FAILS = 10;        // столько неверных PIN подряд — и войти можно только через пароль клиники
+const MAX_BACKUP = 200 * 1048576;
+const REC_STORES = ['patients', 'visits', 'plans'];
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 
 /* ---------- мелочи ---------- */
 const $ = (s, r) => (r || document).querySelector(s);
@@ -667,6 +674,7 @@ function withDefaults(s){
 const S = {
   fatal: null, fatalMsg: '',
   settings: null, patients: new Map(), visits: new Map(), plans: new Map(),
+  dk: null,   // ключ данных; есть только пока программа открыта
   locked: true,
   ui: null,   // заполняется freshUi() при запуске
   setup: {step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false},
@@ -717,15 +725,46 @@ const DB = {
     });
   }
 };
-async function loadAll(){
+/* до входа читаем только настройки и счётчик неверных PIN: карты пациентов зашифрованы */
+async function loadSettings(){
   const kv = await DB.get('kv', 'settings');
   S.settings = kv && kv.v ? withDefaults(kv.v) : null;
-  S.patients = new Map((await DB.all('patients')).map(x => [x.id, x]));
-  S.visits = new Map((await DB.all('visits')).map(x => [x.id, x]));
-  S.plans = new Map((await DB.all('plans')).map(x => [x.id, x]));
+  const lk = await DB.get('kv', 'lock');
+  S.lock.fails = lk && +lk.fails > 0 ? +lk.fails : 0;
+  S.lock.until = lk && +lk.until > 0 ? +lk.until : 0;
+}
+/* после входа: расшифровать карты. Записи старой версии (без шифра) берём как есть и сразу шифруем. */
+async function loadRecords(key){
+  await saving.catch(() => {});
+  const bad = [], plain = [];
+  for (const st of REC_STORES){
+    const m = new Map();
+    await Promise.all((await DB.all(st)).map(async r => {
+      if (!r || r.id == null) return;
+      if (r.ct){ try { const o = await decRec(key, st, r); m.set(o.id, o); } catch (e){ bad.push(st + ':' + r.id); } }
+      else { m.set(r.id, r); plain.push({st, r}); }
+    }));
+    S[st] = m;
+  }
+  // правки, которые не успели записаться до блокировки
+  pending.forEach(o => { if (o.store === 'kv') return; if (o.op === 'put') S[o.store].set(o.value.id, o.value); else if (o.op === 'del') S[o.store].delete(o.key); });
+  if (plain.length){
+    const ops = [];
+    for (const x of plain) ops.push({op: 'put', store: x.st, value: await encRec(key, x.st, x.r)});
+    await DB.write(ops);
+  }
+  if (bad.length) console.error('не расшифровались', bad);
+  return bad.length;
+}
+function forgetData(){
+  S.dk = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
+  renderDatalists();
+}
+async function saveLock(){
+  try { await DB.write([{op: 'put', store: 'kv', value: {k: 'lock', fails: S.lock.fails, until: S.lock.until}}]); } catch (e){ console.error(e); }
 }
 
-/* сохранение: изменения копятся 0,4 с и пишутся одной транзакцией */
+/* сохранение: изменения копятся 0,4 с, шифруются и пишутся одной транзакцией */
 const pending = new Map();
 let saveTimer = 0, saving = Promise.resolve(), inFlight = 0;
 function queue(store, value){
@@ -739,10 +778,17 @@ function schedule(){ setSaveState('pending'); clearTimeout(saveTimer); saveTimer
 function flush(){
   clearTimeout(saveTimer);
   if (!pending.size) return saving;
-  const ops = [...pending.values()]; pending.clear(); inFlight++;
-  saving = saving.then(() => DB.write(ops)).then(() => { inFlight--; if (!pending.size && !inFlight) setSaveState('ok'); },
+  const key = S.dk, ops = [];
+  // карты без ключа не пишем: они дождутся входа (так бывает, только если запись сорвалась перед блокировкой)
+  pending.forEach((o, k) => { if (o.store === 'kv' || key){ ops.push(o); pending.delete(k); } });
+  if (!ops.length) return saving;
+  inFlight++;
+  saving = saving.then(() => sealOps(ops, key)).then(sealed => DB.write(sealed)).then(() => { inFlight--; if (!pending.size && !inFlight) setSaveState('ok'); },
     err => { inFlight--; console.error(err); ops.forEach(o => { const k = o.store + ':' + (o.op === 'put' ? (o.value.id || o.value.k) : o.key); if (!pending.has(k)) pending.set(k, o); }); setSaveState('err'); });
   return saving;
+}
+function sealOps(ops, key){
+  return Promise.all(ops.map(async o => (o.op === 'put' && o.store !== 'kv') ? {op: 'put', store: o.store, value: await encRec(key, o.store, o.value)} : o));
 }
 function setSaveState(s){
   const was = S.saveState; S.saveState = s;
@@ -752,11 +798,12 @@ function setSaveState(s){
 }
 
 /* ---------- шифрование ---------- */
+const safeIter = n => Math.min(2000000, Math.max(100000, Math.round(+n) || 0));   // число повторов из файла не даём раздуть
 async function pbkdf2(pass, salt, iter){
   const key = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveBits']);
-  return crypto.subtle.deriveBits({name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter}, key, 256);
+  return crypto.subtle.deriveBits({name: 'PBKDF2', hash: 'SHA-256', salt, iterations: safeIter(iter)}, key, 256);
 }
-async function pinHash(pin, saltB64, iter){ return b64(await pbkdf2(pin, unb64(saltB64), iter)); }
+async function pinHash(pin, saltB64, iter){ return b64(await pbkdf2(pin, unb64(saltB64), iter)); }   // только для данных версии 1.2
 async function pwKey(pw, salt, iter){ return crypto.subtle.importKey('raw', await pbkdf2(pw, salt, iter), 'AES-GCM', false, ['encrypt', 'decrypt']); }
 async function wrapPkcs8(pw, pkcs8){
   const salt = rnd(16), iv = rnd(12);
@@ -766,6 +813,28 @@ async function wrapPkcs8(pw, pkcs8){
 async function unwrapPkcs8(pw, w){   // неверный пароль — исключение
   return crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(w.iv)}, await pwKey(pw, unb64(w.salt), w.iter), unb64(w.data));
 }
+/* ключ данных: 32 случайных байта; хранится зашифрованным PIN-кодом (dkPin) и открытым ключом клиники (dkBox) */
+async function wrapDk(pin, raw){
+  const salt = rnd(16), iv = rnd(12);
+  const data = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, await pwKey(pin, salt, KEK_ITER), raw);
+  return {salt: b64(salt), iv: b64(iv), iter: KEK_ITER, data: b64(data)};
+}
+async function unwrapDk(pin, w){   // неверный PIN — исключение OperationError
+  return new Uint8Array(await crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(w.iv)}, await pwKey(pin, unb64(w.salt), w.iter), unb64(w.data)));
+}
+const importDk = raw => crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
+async function encRec(key, store, obj){
+  const iv = rnd(12);
+  const ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv, additionalData: enc.encode(store + ':' + obj.id)}, key, enc.encode(JSON.stringify(obj)));
+  return {id: obj.id, iv: b64(iv), ct: b64(ct)};
+}
+async function decRec(key, store, r){
+  const pt = await crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(r.iv), additionalData: enc.encode(store + ':' + r.id)}, key, unb64(r.ct));
+  const o = JSON.parse(dec.decode(pt));
+  if (!o || o.id !== r.id) throw new Error('запись не совпала');
+  return o;
+}
+const privFrom = pkcs8 => crypto.subtle.importKey('pkcs8', pkcs8, {name: 'ECDH', namedCurve: 'P-256'}, false, ['deriveKey', 'deriveBits']);
 async function makeClinicKeys(pw){
   const kp = await crypto.subtle.generateKey({name: 'ECDH', namedCurve: 'P-256'}, true, ['deriveKey', 'deriveBits']);
   const pub = await crypto.subtle.exportKey('jwk', kp.publicKey);
@@ -789,7 +858,90 @@ async function openSealed(priv, box){
   const key = await crypto.subtle.deriveKey({name: 'ECDH', public: epk}, priv, {name: 'AES-GCM', length: 256}, false, ['decrypt']);
   return crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(box.iv)}, key, unb64(box.data));
 }
-function weakPin(p){ return /^(\d)\1+$/.test(p) || '01234567890'.indexOf(p) >= 0 || '09876543210'.indexOf(p) >= 0; }
+/* правила для нового PIN и пароля клиники; старые (короче) продолжают работать, пока их не сменят */
+const COMMON_PINS = ['123456', '654321', '123321', '159753', '147258', '258369', '147852', '789456', '102030', '696969', '112211', '123654', '12345678', '87654321', '19701970'];
+function weakPin(p){
+  return /^(\d{1,4})\1+$/.test(p) || /^(?:(\d)\1)+$/.test(p) || '01234567890123456789'.indexOf(p) >= 0 || '98765432109876543210'.indexOf(p) >= 0 || COMMON_PINS.indexOf(p) >= 0;
+}
+function newPinError(a, b){
+  if (!/^\d{6,8}$/.test(a)) return 'PIN — от 6 до 8 цифр.';
+  if (weakPin(a)) return 'Слишком простой PIN. Придумайте другой.';
+  if (a !== b) return 'PIN не совпадает.';
+  return '';
+}
+const COMMON_PW = ['password', 'qwerty', 'qwertyuiop', 'asdfgh', 'asdfghjkl', 'zxcvbn', 'qazwsx', 'qazwsxedc', 'admin', 'administrator', 'parol', 'пароль', 'йцукен', 'йцукенгшщз', 'клиника', 'klinika', 'kirenix', 'iloveyou', 'letmein', 'welcome', 'privet', 'привет'];
+function newPwError(a, b){
+  if (a.length < 10) return 'Пароль клиники — не короче 10 знаков.';
+  if (!/[A-Za-zА-Яа-яЁё]/.test(a)) return 'В пароле клиники нужны буквы, а не только цифры.';
+  const letters = a.toLowerCase().replace(/[^a-zа-яё]/g, '');
+  if (letters.length < 3 || /^(.)\1*$/.test(letters) || COMMON_PW.indexOf(letters) >= 0) return 'Слишком простой пароль. Придумайте другой — например, три слова через дефис.';
+  if (a !== b) return 'Пароли не совпадают.';
+  return '';
+}
+
+/* новый компьютер: ключ данных, ключи клиники, всё зашифровано */
+async function newSecurity(pin, pw){
+  const raw = rnd(32), keys = await makeClinicKeys(pw);
+  const sec = {v: 2, pub: keys.pub, wrap: keys.wrap, dkPin: await wrapDk(pin, raw), dkBox: await sealFor(keys.pub, raw)};
+  const key = await importDk(raw); raw.fill(0);
+  return {sec, key};
+}
+/* PIN → ключ данных; null — неверный PIN. Данные версии 1.2 при первом входе шифруются. */
+async function keyFromPin(pin){
+  const sec = S.settings.security;
+  if (sec.dkPin){
+    let raw;
+    try { raw = await unwrapDk(pin, sec.dkPin); } catch (e){ if (e && e.name === 'OperationError') return null; throw e; }
+    const key = await importDk(raw); raw.fill(0);
+    return key;
+  }
+  if (sec.pinHash && sec.pinSalt){
+    if ((await pinHash(pin, sec.pinSalt, sec.pinIter)) !== sec.pinHash) return null;
+    return encryptOldData(pin);
+  }
+  throw new Error('нет ключей программы');
+}
+/* переход с версии 1.2: новый ключ данных, все карты шифруются одной транзакцией вместе с настройками */
+async function encryptOldData(pin){
+  const sec = S.settings.security, raw = rnd(32);
+  const key = await importDk(raw);
+  const next = Object.assign({}, sec, {v: 2, dkPin: await wrapDk(pin, raw), dkBox: await sealFor(sec.pub, raw), shortPin: pin.length < 6});
+  raw.fill(0);
+  delete next.pinHash; delete next.pinSalt; delete next.pinIter;
+  await saving.catch(() => {});
+  const ops = [];
+  for (const st of REC_STORES){
+    for (const r of await DB.all(st)) if (r && r.id != null && !r.ct) ops.push({op: 'put', store: st, value: await encRec(key, st, r)});
+  }
+  ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: Object.assign({}, S.settings, {security: next})}});
+  await DB.write(ops);
+  S.settings.security = next;
+  return key;
+}
+/* «Забыли PIN?»: пароль клиники открывает ключ данных, новый PIN его перешифровывает */
+async function resetPin(pw, pkcs8, pin){
+  const sec = S.settings.security;
+  if (!sec.dkBox) return encryptOldData(pin);
+  const raw = new Uint8Array(await openSealed(await privFrom(pkcs8), sec.dkBox));
+  const next = Object.assign({}, sec, {dkPin: await wrapDk(pin, raw), shortPin: false});
+  if (safeIter(sec.wrap.iter) < PW_ITER) next.wrap = await wrapPkcs8(pw, pkcs8);
+  const key = await importDk(raw); raw.fill(0);
+  S.settings.security = next; saveSettings(); await flush();
+  return key;
+}
+/* общий вход после PIN или пароля клиники */
+async function openWith(key){
+  lockGen++;
+  S.dk = key;
+  const bad = await loadRecords(key);
+  S.lock.fails = 0; S.lock.until = 0; await saveLock();
+  S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
+  S.locked = false; lastAct = Date.now();
+  renderDatalists(); render();
+  if (bad) toast('Не удалось прочитать записей: ' + bad + '. Ничего не удаляйте и напишите в поддержку: Telegram @aikiren.', 12000);
+  autoBackup();
+  if (S.persist !== true) askPersist().then(checkStorage);
+}
 
 /* ---------- копии ---------- */
 function download(name, text){
@@ -799,6 +951,7 @@ function download(name, text){
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
 }
 async function makeBackup(auto){
+  if (!S.dk) throw new Error('программа заблокирована');
   await flush();
   const st = S.settings;
   const createdAt = new Date().toISOString(), day = todayIso();
@@ -823,6 +976,7 @@ async function autoBackup(){
 }
 const userErr = m => Object.assign(new Error(m), {user: true});
 async function readBackup(file, pw){
+  if (file.size > MAX_BACKUP) throw userErr('Файл слишком большой — это не копия Kirenix Клиники.');
   let obj;
   try { obj = JSON.parse(await file.text()); } catch (e){ throw userErr('Файл повреждён или это не копия Kirenix Клиники.'); }
   if (!obj || obj.app !== APP || obj.kind !== 'backup' || !obj.wrap || !obj.box) throw userErr('Это не файл копии Kirenix Клиники.');
@@ -831,7 +985,7 @@ async function readBackup(file, pw){
   let data;
   try { data = JSON.parse(dec.decode(await openSealed(priv, obj.box))); } catch (e){ throw userErr('Копия повреждена — открыть её не получилось.'); }
   if (!data || data.app !== APP || !data.settings || !Array.isArray(data.patients) || !Array.isArray(data.visits) || !Array.isArray(data.plans)) throw userErr('В копии нет нужных данных.');
-  return sanitizeData(data);
+  return {data: sanitizeData(data), priv};
 }
 /* Копию проверяем по полям, прежде чем положить в программу: в разметку попадает только то, что должно там быть. */
 const ID_RE = /^[\w-]{1,64}$/;
@@ -845,7 +999,8 @@ function sanitizeData(d){
   if (!st.procs.length) st.procs = clone(DEF.procs);
   st.security.lockMin = [5, 10, 15, 30, 60].indexOf(+st.security.lockMin) >= 0 ? +st.security.lockMin : 10;
   ['planRows', 'dirRows', 'cosmRows'].forEach(k => { st.blank[k] = Math.max(1, Math.min(26, Math.round(num(st.blank[k])) || DEF.blank[k])); });
-  if (!st.security.pinHash || !st.security.pinSalt || !st.security.wrap || !st.security.pub) throw userErr('В копии нет ключей программы.');
+  const sec = st.security, isWrap = w => !!w && ['salt', 'iv', 'data'].every(k => typeof w[k] === 'string'), isBox = b => !!b && !!b.epk && typeof b.iv === 'string' && typeof b.data === 'string';
+  if (!isWrap(sec.wrap) || !sec.pub || !((isWrap(sec.dkPin) && isBox(sec.dkBox)) || (typeof sec.pinHash === 'string' && typeof sec.pinSalt === 'string'))) throw userErr('В копии нет ключей программы.');
   const patients = d.patients.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {
     last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж', pdConsentAt: validIso(p.pdConsentAt) ? p.pdConsentAt : ''}));
   const pids = new Set(patients.map(p => p.id));
@@ -864,16 +1019,23 @@ function sanitizeData(d){
     cosm: (Array.isArray(p.cosm) ? p.cosm : []).map(r => ({name: str(r && r.name), rule: str(r && r.rule)}))}));
   return Object.assign(d, {settings: st, patients, visits, plans});
 }
-async function replaceAll(data){
+/* восстановление: карты кладутся зашифрованными ключом данных из копии; копия версии 1.2 — как есть, зашифруется при первом входе */
+async function replaceAll(data, priv){
+  let key = null;
+  if (data.settings.security.dkBox){
+    let raw;
+    try { raw = new Uint8Array(await openSealed(priv, data.settings.security.dkBox)); } catch (e){ throw userErr('Копия повреждена — открыть её не получилось.'); }
+    key = await importDk(raw); raw.fill(0);
+  }
   const ops = STORES.map(s => ({op: 'clear', store: s}));
   ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: data.settings}});
-  data.patients.forEach(x => ops.push({op: 'put', store: 'patients', value: x}));
-  data.visits.forEach(x => ops.push({op: 'put', store: 'visits', value: x}));
-  data.plans.forEach(x => ops.push({op: 'put', store: 'plans', value: x}));
+  for (const st of REC_STORES) for (const x of data[st]) ops.push({op: 'put', store: st, value: key ? await encRec(key, st, x) : x});
   pending.clear();
   await saving.catch(() => {});
   await DB.write(ops);
-  await loadAll();
+  S.locked = true; forgetData();
+  S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
+  await loadSettings();
 }
 async function doRestore(where){
   const R = S.restore, pwEl = $('#rs-pw'), pw = pwEl ? pwEl.value : '';
@@ -881,18 +1043,16 @@ async function doRestore(where){
   if (!pw){ R.err = 'Введите пароль клиники.'; return render(); }
   R.busy = true; R.err = ''; render();
   try {
-    const data = await readBackup(R.file, pw);
+    const got = await readBackup(R.file, pw), data = got.data;
     const has = S.patients.size || S.visits.size;
     const ok = confirm('Восстановить копию от ' + fmtDT(data.createdAt) + '?\n\nВ копии пациентов: ' + data.patients.length + ', визитов: ' + data.visits.length + '.' +
       (has ? '\n\nВсе данные на этом компьютере заменятся данными из копии. Перед этим программа сохранит копию текущих данных в «Загрузки».' : ''));
     if (!ok){ R.busy = false; return render(); }
-    if (has && S.settings) await makeBackup(false);
-    await replaceAll(data);
-    renderDatalists();
+    if (has && S.settings && S.dk) await makeBackup(false);
+    await replaceAll(data, got.priv);
     S.restore = {file: null, err: '', busy: false};
     S.setup = freshSetup();
     S.ui = freshUi();
-    S.locked = true; S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
     render(); toast('Копия восстановлена. Введите PIN специалиста — тот, что был в копии.', 7000);
   } catch (e){
     if (!e.user) console.error(e); R.busy = false; R.err = e.message || 'Не удалось восстановить копию.'; render();
@@ -912,6 +1072,10 @@ const field = (label, input, req, cls) => '<label class="field' + (cls ? ' ' + c
 const errBox = m => m ? '<p class="err-text" role="alert">' + esc(m) + '</p>' : '';
 const okBox = m => m ? '<p class="note" role="status" style="color:var(--ok);font-weight:600">' + esc(m) + '</p>' : '';
 const brandBox = sub => '<div class="gate-brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(sub) + '</span></div></div>';
+/* PIN и пароль — обычные поля со скрытыми символами, а не type=password: так Chrome не предлагает их запомнить и не подставляет сам */
+const NOSAVE = ' autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"';
+const secretIn = (id, extra) => '<input type="text" class="secret" id="' + id + '"' + NOSAVE + (extra || '') + '>';
+const pinIn = (id, extra) => '<input type="text" class="secret pin-input" inputmode="numeric" maxlength="8" id="' + id + '"' + NOSAVE + (extra || '') + '>';
 
 /* ---------- отрисовка ---------- */
 const app = document.getElementById('app');
@@ -933,11 +1097,12 @@ function renderFatal(){
   const msg = {
     browser: ['Этот браузер не подходит', 'Откройте программу в Google Chrome, Яндекс Браузере или Microsoft Edge последней версии.'],
     tab: ['Программа уже открыта', 'Kirenix Клиника уже открыта в другой вкладке или окне этого браузера. Перейдите туда. Если вы её закрыли — обновите эту страницу.'],
-    db: ['Браузер не даёт сохранять данные', 'Проверьте, что программа открыта не в режиме инкогнито и на компьютере есть свободное место, затем обновите страницу. Если не помогло — напишите в поддержку: Telegram @aikiren.']
+    db: ['Браузер не даёт сохранять данные', 'Проверьте, что программа открыта не в режиме инкогнито и на компьютере есть свободное место, затем обновите страницу. Если не помогло — напишите в поддержку: Telegram @aikiren.'],
+    frame: ['Программа открыта внутри другого сайта', 'Так работать нельзя: это небезопасно для карт пациентов. Откройте адрес kirenix.ru/klinika/app/ в Google Chrome напрямую или через значок установленной программы.']
   }[S.fatal] || ['Что-то пошло не так', 'Обновите страницу.'];
   return '<div class="gate"><div class="card stack fatal">' + brandBox('') + '<h2>' + msg[0] + '</h2><p>' + msg[1] + '</p>' +
     (S.fatalMsg ? '<p class="note mono">' + esc(S.fatalMsg) + '</p>' : '') +
-    '<button type="button" class="btn btn-primary" data-act="reload">Обновить страницу</button></div></div>';
+    (S.fatal === 'frame' ? '' : '<button type="button" class="btn btn-primary" data-act="reload">Обновить страницу</button>') + '</div></div>';
 }
 
 /* первая настройка */
@@ -954,27 +1119,27 @@ function renderSetup(){
       '<button type="button" class="btn btn-primary wide" data-act="su-next">Дальше</button>' +
       '<p class="note">Переносите программу с другого компьютера? <button type="button" class="linkish" data-act="su-restore">Восстановить из копии</button></p>';
   } else if (s.step === 2){
-    body = '<h2>PIN специалиста</h2><p class="note">4–8 цифр. Программа спросит PIN при входе и после 10 минут без действий — чтобы карты не открыл посторонний.</p>' +
-      field('PIN', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="su-pin" data-sf="pin" value="' + esc(s.pin) + '" autocomplete="new-password" data-autofocus>', true) +
-      field('PIN ещё раз', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="su-pin2" data-sf="pin2" value="' + esc(s.pin2) + '" autocomplete="new-password">', true) +
+    body = '<h2>PIN специалиста</h2><p class="note">6–8 цифр, как на телефоне. Программа спросит PIN при входе и после 10 минут без действий. PIN — ключ к картам пациентов: без него их не открыть.</p>' +
+      field('PIN', pinIn('su-pin', ' data-sf="pin" value="' + esc(s.pin) + '" data-autofocus'), true) +
+      field('PIN ещё раз', pinIn('su-pin2', ' data-sf="pin2" value="' + esc(s.pin2) + '"'), true) +
       errBox(s.err) +
       '<div class="row"><button type="button" class="btn" data-act="su-back">Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="su-next">Дальше</button></div>';
   } else {
-    body = '<h2>Пароль клиники</h2><p class="note">Нужен, чтобы открыть копию данных и сбросить забытый PIN. Его должен знать руководитель или администратор клиники. Запишите и храните отдельно: Kirenix этот пароль не знает и восстановить его не сможет.</p>' +
-      field('Пароль клиники, не короче 8 знаков', '<input type="password" id="su-pw" data-sf="pw" value="' + esc(s.pw) + '" autocomplete="new-password" data-autofocus' + (s.busy ? ' disabled' : '') + '>', true) +
-      field('Пароль ещё раз', '<input type="password" id="su-pw2" data-sf="pw2" value="' + esc(s.pw2) + '" autocomplete="new-password"' + (s.busy ? ' disabled' : '') + '>', true) +
+    body = '<h2>Пароль клиники</h2><p class="note">Нужен, чтобы открыть копию данных и сбросить забытый PIN. Его должен знать руководитель или администратор клиники. Не короче 10 знаков, с буквами — например, три слова через дефис. Запишите и храните отдельно: Kirenix этот пароль не знает и восстановить его не сможет.</p>' +
+      field('Пароль клиники, не короче 10 знаков', secretIn('su-pw', ' data-sf="pw" value="' + esc(s.pw) + '" data-autofocus' + (s.busy ? ' disabled' : '')), true) +
+      field('Пароль ещё раз', secretIn('su-pw2', ' data-sf="pw2" value="' + esc(s.pw2) + '"' + (s.busy ? ' disabled' : '')), true) +
       errBox(s.err) +
       '<div class="row"><button type="button" class="btn" data-act="su-back"' + (s.busy ? ' disabled' : '') + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="su-finish"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'Настраиваю…' : 'Готово') + '</button></div>';
   }
   return '<div class="gate"><div class="card stack">' + brandBox('Настройка на этом компьютере') + dots + (IS_SAFARI ? SAFARI_WARN : '') + body +
-    '<p class="note">Данные пациентов хранятся только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p></div></div>';
+    '<p class="note">Данные пациентов хранятся зашифрованными только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p></div></div>';
 }
 function restoreForm(where){
   const R = S.restore;
   return '<div class="stack"><h2' + (where === 'settings' ? ' style="font-size:15px"' : '') + '>Восстановить из копии</h2>' +
     '<p class="note">Файл копии называется kirenix-klinika-kopiya-…json и лежит в папке «Загрузки» или на флешке. Нужен пароль клиники.</p>' +
     field('Файл копии', '<span class="row"><span class="btn file small">Выбрать файл<input type="file" id="rs-file" data-rs="file" accept=".json,application/json"' + (R.busy ? ' disabled' : '') + '></span><span class="small">' + (R.file ? esc(R.file.name) : 'файл не выбран') + '</span></span>', true) +
-    field('Пароль клиники', '<input type="password" id="rs-pw" autocomplete="off"' + (R.busy ? ' disabled' : '') + '>', true) +
+    field('Пароль клиники', secretIn('rs-pw', R.busy ? ' disabled' : ''), true) +
     errBox(R.err) +
     '<div class="row">' + (where === 'setup' ? '<button type="button" class="btn" data-act="su-restore-cancel"' + (R.busy ? ' disabled' : '') + '>Назад</button>' : '') +
       '<button type="button" class="btn' + (where === 'setup' ? ' btn-primary' : '') + '" data-act="restore" data-where="' + where + '"' + (R.busy ? ' disabled' : '') + '>' + (R.busy ? 'Восстанавливаю…' : 'Восстановить') + '</button></div></div>';
@@ -984,18 +1149,25 @@ function restoreForm(where){
 function renderLock(){
   const L = S.lock, st = S.settings;
   let body;
+  const dis = L.busy ? ' disabled' : '';
   if (L.mode === 'forgot'){
     body = '<h2>Сброс PIN</h2><p class="note">Введите пароль клиники и придумайте новый PIN.</p>' +
-      field('Пароль клиники', '<input type="password" id="fg-pw" autocomplete="off" data-autofocus' + (L.busy ? ' disabled' : '') + '>', true) +
-      field('Новый PIN, 4–8 цифр', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="fg-pin" autocomplete="new-password"' + (L.busy ? ' disabled' : '') + '>', true) +
-      field('Новый PIN ещё раз', '<input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="fg-pin2" autocomplete="new-password"' + (L.busy ? ' disabled' : '') + '>', true) +
+      field('Пароль клиники', secretIn('fg-pw', ' data-autofocus' + dis), true) +
+      field('Новый PIN, 6–8 цифр', pinIn('fg-pin', dis), true) +
+      field('Новый PIN ещё раз', pinIn('fg-pin2', dis), true) +
       errBox(L.err) +
-      '<div class="row"><button type="button" class="btn" data-act="lk-cancel"' + (L.busy ? ' disabled' : '') + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="lk-reset"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? 'Проверяю…' : 'Сменить PIN и войти') + '</button></div>';
+      '<div class="row"><button type="button" class="btn" data-act="lk-cancel"' + dis + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="lk-reset"' + dis + '>' + (L.busy ? 'Проверяю…' : 'Сменить PIN и войти') + '</button></div>';
+  } else if (L.fails >= HARD_FAILS){
+    body = '<h2>Вход по PIN закрыт</h2>' +
+      '<div class="banner bad" role="alert" style="margin:0"><span>PIN ввели неверно ' + L.fails + ' раз подряд. Чтобы никто не подобрал PIN, вход теперь только через пароль клиники.</span></div>' +
+      '<p class="note">Пароль клиники знает руководитель. Нажмите кнопку ниже, введите пароль и придумайте новый PIN.</p>' +
+      '<button type="button" class="btn btn-primary wide" data-act="lk-forgot">Войти с паролем клиники</button>' +
+      '<p class="note">Специалист: ' + esc(st.doctor.fio) + '</p>';
   } else {
     body = '<h2>Введите PIN</h2>' +
-      '<form data-form="unlock" class="stack" autocomplete="off"><input type="password" class="pin-input" inputmode="numeric" maxlength="8" id="lk-pin" aria-label="PIN" data-autofocus' + (L.busy ? ' disabled' : '') + '>' +
+      '<div class="stack">' + pinIn('lk-pin', ' aria-label="PIN" data-autofocus' + dis) +
       errBox(L.err) +
-      '<button type="submit" class="btn btn-primary wide"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></form>' +
+      '<button type="button" class="btn btn-primary wide" data-act="unlock"' + dis + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></div>' +
       '<p class="note">Специалист: ' + esc(st.doctor.fio) + '</p>' +
       '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>';
   }
@@ -1260,6 +1432,7 @@ const IS_SAFARI = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS|E
 const SAFARI_WARN = '<div class="banner bad" role="alert"><span><b>Откройте программу в Google Chrome.</b> Safari стирает данные сайта, если его не открывать 7 дней, — карты пациентов могут пропасть.</span></div>';
 function banners(){
   let out = IS_SAFARI ? SAFARI_WARN : '';
+  if (S.settings.security.shortPin && !(S.ui.view === 'settings' && S.ui.stab === 'security')) out += '<div class="banner"><span><b>PIN короче 6 цифр.</b> Такой проще подобрать — смените его на 6–8 цифр.</span><button type="button" class="btn small" data-act="goto-settings" data-tab="security">Сменить PIN</button></div>';
   if (!clean(S.settings.clinic.legal) && S.ui.view !== 'settings') out += '<div class="banner info"><span><b>Для согласий впишите полное название и адрес клиники.</b> Пока их нет, на согласиях будет пустая строка.</span><button type="button" class="btn small" data-act="goto-docs">Вписать</button></div>';
   if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место. Не закрывайте программу.</span><button type="button" class="btn small" data-act="retry-save">Сохранить ещё раз</button></div>';
   const b = S.settings.backup;
@@ -1279,7 +1452,7 @@ function helpBody(){
       '<div class="flow-box accent"><b>Kirenix Клиника</b><span>карта, приём, согласия, план, печать</span></div></div></div>' +
     '<section class="g-sec"><h3>Один раз в начале</h3><ol class="g-steps">' +
       '<li><b>Откройте программу в Google Chrome</b> на ноутбуке специалиста. Чтобы она открывалась отдельным окном, как обычная программа, нажмите в Chrome значок установки справа в адресной строке.</li>' +
-      '<li><b>Первый запуск.</b> Программа спросит название клиники, ФИО специалиста, потом PIN и пароль клиники. PIN — 4–8 цифр, специалист вводит его при каждом входе. Пароль клиники придумывает руководитель и записывает: он нужен, если забыли PIN или нужно восстановить данные. Мы этот пароль не знаем.</li>' +
+      '<li><b>Первый запуск.</b> Программа спросит название клиники, ФИО специалиста, потом PIN и пароль клиники. PIN — 6–8 цифр, специалист вводит его при каждом входе. Пароль клиники (от 10 знаков) придумывает руководитель и записывает: он нужен, если забыли PIN или нужно восстановить данные. Мы этот пароль не знаем.</li>' +
       '<li><b>Настройки.</b> Нажмите ' + kb('Настройки') + '. В разделе «Клиника и специалист» загрузите логотип и QR-код для бланков, впишите телефон, полное название и адрес клиники. В разделе «Согласия» проверьте тексты согласий.</li>' +
     '</ol></section>' +
     '<section class="g-sec"><h3>Как проходит приём — по порядку</h3><ol class="g-steps">' +
@@ -1315,8 +1488,13 @@ function helpBody(){
       '<li>Каждый день при первом входе программа сама сохраняет зашифрованную копию в папку «Загрузки». Раз в неделю переносите свежую копию на флешку.</li>' +
       '<li>Не открывайте программу в режиме инкогнито и не очищайте в Chrome «Файлы cookie и другие данные сайтов» — так стираются карты. Если это случилось, восстановите данные из копии.</li>' +
       '<li>Новый ноутбук: откройте программу на нём и на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
-      '<li>Уходите от компьютера — нажмите ' + kb('Заблокировать') + '. Через 10 минут без действий программа заблокируется сама.</li>' +
       '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
+    '</ul></section>' +
+    '<section class="g-sec"><h3>Чтобы карты не увидели чужие</h3><ul>' +
+      '<li>Карты пациентов на компьютере зашифрованы: без PIN их не открыть, даже через настройки браузера. После 10 неверных PIN подряд вход — только с паролем клиники.</li>' +
+      '<li>Уходите от компьютера — нажмите ' + kb('Заблокировать') + '. Через 10 минут без действий программа заблокируется сама.</li>' +
+      '<li>У специалиста — своя учётная запись Windows с паролем. Попросите того, кто настраивает ноутбук, включить шифрование диска (BitLocker или «Шифрование устройства»): если ноутбук украдут, данные не прочитать.</li>' +
+      '<li>PIN и пароль клиники не пишите на стикерах у компьютера. Флешку с копиями храните в закрытом ящике.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Вопросы</h3><p>Пишите нам там, где вы с нами переписываетесь, или в Telegram @aikiren — поможем и поправим.</p></section>';
 }
@@ -1957,18 +2135,21 @@ function setBlanks(){
 }
 function setSecurity(){
   const X = S.sec;
-  return '<section class="card stack"><h3>Автоблокировка</h3>' + howto('Если никто не трогает компьютер, программа закроется и попросит PIN — чтобы карты не увидел посторонний.') +
+  return '<section class="card stack"><h3>Как защищены карты</h3>' +
+      '<p class="small">Карты пациентов на этом компьютере зашифрованы. Открыть их можно только PIN-кодом специалиста, а если PIN забыли — паролем клиники. Без них данные не прочитать, даже через настройки браузера. После 10 неверных PIN подряд вход — только с паролем клиники.</p>' +
+      '<p class="note">Ещё защитите сам ноутбук: своя учётная запись Windows с паролем и шифрование диска (BitLocker или «Шифрование устройства»). Тогда данные не прочитать, даже если ноутбук украдут.</p></section>' +
+    '<section class="card stack"><h3>Автоблокировка</h3>' + howto('Если никто не трогает компьютер, программа закроется и попросит PIN — чтобы карты не увидел посторонний.') +
       field('Блокировать после бездействия', '<select data-s="security.lockMin" data-numeric="1">' +
       [5, 10, 15, 30, 60].map(m => '<option value="' + m + '"' + (S.settings.security.lockMin === m ? ' selected' : '') + '>' + m + ' мин</option>').join('') + '</select>') + '</section>' +
-    '<section class="card stack"><h3>Сменить PIN специалиста</h3>' + howto('PIN — 4–8 цифр, его вводят при каждом входе.') + '<div class="sgrid">' +
-      field('Текущий PIN', '<input type="password" inputmode="numeric" maxlength="8" id="sp-cur" autocomplete="off">') + '<span></span>' +
-      field('Новый PIN, 4–8 цифр', '<input type="password" inputmode="numeric" maxlength="8" id="sp-new" autocomplete="new-password">') +
-      field('Новый PIN ещё раз', '<input type="password" inputmode="numeric" maxlength="8" id="sp-new2" autocomplete="new-password">') + '</div>' +
+    '<section class="card stack"><h3>Сменить PIN специалиста</h3>' + howto('PIN — 6–8 цифр, его вводят при каждом входе. Не берите дату рождения и простые наборы вроде 123456.') + '<div class="sgrid">' +
+      field('Текущий PIN', pinIn('sp-cur')) + '<span></span>' +
+      field('Новый PIN, 6–8 цифр', pinIn('sp-new')) +
+      field('Новый PIN ещё раз', pinIn('sp-new2')) + '</div>' +
       errBox(X.pinErr) + okBox(X.pinOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pin"' + (X.busy ? ' disabled' : '') + '>Сменить PIN</button></div></section>' +
     '<section class="card stack"><h3>Сменить пароль клиники</h3>' + howto('Пароль клиники знает руководитель. Он нужен, чтобы восстановить данные из копии и сбросить забытый PIN. После смены сразу сохраните новую копию: старые копии открываются прежним паролем.') + '<div class="sgrid">' +
-      field('Текущий пароль клиники', '<input type="password" id="sw-cur" autocomplete="off">') + '<span></span>' +
-      field('Новый пароль, не короче 8 знаков', '<input type="password" id="sw-new" autocomplete="new-password">') +
-      field('Новый пароль ещё раз', '<input type="password" id="sw-new2" autocomplete="new-password">') + '</div>' +
+      field('Текущий пароль клиники', secretIn('sw-cur')) + '<span></span>' +
+      field('Новый пароль, не короче 10 знаков', secretIn('sw-new')) +
+      field('Новый пароль ещё раз', secretIn('sw-new2')) + '</div>' +
       errBox(X.pwErr) + okBox(X.pwOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pw"' + (X.busy ? ' disabled' : '') + '>Сменить пароль</button></div></section>';
 }
 function setData(){
@@ -1982,7 +2163,7 @@ function setData(){
       '<div class="row"><button type="button" class="btn btn-primary" data-act="backup">Сохранить копию сейчас</button></div></section>' +
     '<section class="card stack">' + restoreForm('settings') + '</section>' +
     '<section class="card stack"><h3>Где хранятся данные</h3>' +
-      '<p class="small">Только в этом браузере на этом компьютере. На сервер и в интернет ничего не отправляется. Оператор персональных данных пациентов — клиника.</p>' +
+      '<p class="small">Только в этом браузере на этом компьютере, в зашифрованном виде. На сервер и в интернет ничего не отправляется. Оператор персональных данных пациентов — клиника.</p>' +
       '<div class="row">' + persistLine + (S.usage != null ? '<span class="chip neutral">занято около ' + fmtNum(S.usage / 1048576) + ' МБ</span>' : '') + '</div>' +
       (S.persist === false ? '<p class="note">Чтобы браузер не удалил данные при нехватке места, установите программу как приложение и нажмите кнопку ниже.</p>' : '') +
       '<div class="row">' + (S.persist !== true ? '<button type="button" class="btn" data-act="persist">Попросить браузер хранить данные постоянно</button>' : '') +
@@ -1990,7 +2171,7 @@ function setData(){
       '<p class="note">Установленная программа открывается в своём окне со значком на рабочем столе и работает без интернета.</p></section>' +
     '<section class="card stack danger-zone"><h3>Удалить все данные с этого компьютера</h3>' +
       '<p class="small">Нужно, если программу больше не используют на этом компьютере. Сначала сохраните копию. Удаление нельзя отменить.</p>' +
-      field('Пароль клиники', '<input type="password" id="del-pw" autocomplete="off">') + errBox(S.sec.delErr) +
+      field('Пароль клиники', secretIn('del-pw')) + errBox(S.sec.delErr) +
       '<div class="row"><button type="button" class="btn btn-danger" data-act="wipe"' + (S.sec.busy ? ' disabled' : '') + '>Удалить все данные</button></div></section>';
 }
 function parseList(path, text){
@@ -2100,29 +2281,40 @@ let lastAct = Date.now();
 function idleCheck(){ if (S.settings && !S.locked && !S.fatal && Date.now() - lastAct > S.settings.security.lockMin * 60000) lockNow(); }
 setInterval(idleCheck, 10000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) idleCheck(); });
-function lockNow(){
-  flush(); hideTpl();
-  S.locked = true; S.ui.modal = null; S.lock = {mode: 'pin', err: '', busy: false, fails: S.lock.fails || 0, until: S.lock.until || 0};
+/* блокировка: сразу экран PIN, потом дописываем изменения и стираем из памяти ключ и карты */
+let lockGen = 0;   // если успели войти снова, пока дописывались изменения, — ничего не стираем
+async function lockNow(){
+  if (!S.settings || S.locked) return;
+  hideTpl();
+  const gen = ++lockGen;
+  S.locked = true; S.ui.modal = null; S.ui.q = S.ui.sq = S.ui.jq = S.ui.dq = '';
+  Object.assign(S.lock, {mode: 'pin', err: '', busy: false});
+  const pr = document.getElementById('print-root'); if (pr) pr.innerHTML = '';
   render();
+  try { await flush(); } catch (e){ console.error(e); }
+  if (S.locked && gen === lockGen) forgetData();
+}
+/* неверный PIN: счётчик хранится в браузере, перезагрузка страницы его не сбрасывает */
+async function pinFailed(){
+  const L = S.lock;
+  L.fails++;
+  L.until = L.fails >= 5 && L.fails < HARD_FAILS ? Date.now() + 30000 * (L.fails - 4) : 0;
+  L.err = L.fails >= HARD_FAILS ? '' : L.fails >= 5 ? 'Неверный PIN. Следующая попытка — через ' + 30 * (L.fails - 4) + ' с.' : 'Неверный PIN.';
+  await saveLock();
 }
 async function unlock(pin){
-  const L = S.lock, sec = S.settings.security;
+  const L = S.lock;
+  if (L.busy || !S.locked) return;
+  if (L.fails >= HARD_FAILS) return render();
   if (L.until > Date.now()){ L.err = 'Слишком много попыток. Подождите ' + Math.ceil((L.until - Date.now()) / 1000) + ' с.'; return render(); }
   if (!pin){ L.err = 'Введите PIN.'; return render(); }
   L.busy = true; L.err = ''; render();
-  let ok = false;
-  try { ok = (await pinHash(pin, sec.pinSalt, sec.pinIter)) === sec.pinHash; } catch (e){ console.error(e); }
-  L.busy = false;
-  if (!ok){
-    L.fails++;
-    if (L.fails >= 5) L.until = Date.now() + 30000 * (L.fails - 4);
-    L.err = L.fails >= 5 ? 'Неверный PIN. Следующая попытка — через ' + 30 * (L.fails - 4) + ' с.' : 'Неверный PIN.';
-    return render();
-  }
-  L.fails = 0; L.until = 0; S.locked = false; lastAct = Date.now();
-  render();
-  autoBackup();
-  if (S.persist !== true) askPersist().then(checkStorage);
+  let key = null;
+  try { key = await keyFromPin(pin); }
+  catch (e){ console.error(e); L.busy = false; L.err = 'Не получилось открыть данные: ' + (e.message || e) + '. Напишите в поддержку: Telegram @aikiren.'; return render(); }
+  if (!key){ L.busy = false; await pinFailed(); return render(); }
+  try { await openWith(key); }
+  catch (e){ console.error(e); S.dk = null; L.busy = false; L.err = 'Не получилось открыть данные: ' + (e.message || e); render(); }
 }
 
 /* ---------- действия ---------- */
@@ -2154,9 +2346,8 @@ async function onClick(e){
       const s = S.setup; s.err = '';
       if (s.step === 1){ if (!clean(s.name) || !clean(s.doctor)){ s.err = 'Заполните название клиники и ФИО специалиста.'; return render(); } s.step = 2; }
       else if (s.step === 2){
-        if (!/^\d{4,8}$/.test(s.pin)){ s.err = 'PIN — от 4 до 8 цифр.'; return render(); }
-        if (weakPin(s.pin)){ s.err = 'Слишком простой PIN. Придумайте другой.'; return render(); }
-        if (s.pin !== s.pin2){ s.err = 'PIN не совпадает.'; return render(); }
+        const pe = newPinError(s.pin, s.pin2);
+        if (pe){ s.err = pe; return render(); }
         s.step = 3;
       }
       return render();
@@ -2166,19 +2357,18 @@ async function onClick(e){
     case 'su-restore-cancel': S.setup.restore = false; return render();
     case 'su-finish': {
       const s = S.setup; s.err = '';
-      if (s.pw.length < 8){ s.err = 'Пароль клиники — не короче 8 знаков.'; return render(); }
-      if (s.pw !== s.pw2){ s.err = 'Пароли не совпадают.'; return render(); }
+      const pe = newPwError(s.pw, s.pw2);
+      if (pe){ s.err = pe; return render(); }
       s.busy = true; render();
       try {
         const st = withDefaults(null);
         st.clinic.name = clean(s.name); st.doctor.fio = clean(s.doctor);
-        const salt = b64(rnd(16));
-        Object.assign(st.security, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(s.pin, salt, PIN_ITER)});
-        const keys = await makeClinicKeys(s.pw);
-        st.security.pub = keys.pub; st.security.wrap = keys.wrap;
+        const made = await newSecurity(s.pin, s.pw);
+        Object.assign(st.security, made.sec);
         st.createdAt = Date.now();
-        await DB.write([{op: 'put', store: 'kv', value: {k: 'settings', v: st}}]);
-        S.settings = st; S.setup = freshSetup(); S.locked = false; lastAct = Date.now(); S.ui.view = 'help';
+        await DB.write([{op: 'put', store: 'kv', value: {k: 'settings', v: st}}, {op: 'put', store: 'kv', value: {k: 'lock', fails: 0, until: 0}}]);
+        S.settings = st; S.dk = made.key; S.setup = freshSetup(); S.locked = false; lastAct = Date.now(); S.ui.view = 'help';
+        S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
         renderDatalists(); render();
         toast('Готово. Можно добавлять пациентов.', 4500);
         askPersist().then(checkStorage);
@@ -2189,19 +2379,18 @@ async function onClick(e){
     /* вход */
     case 'lk-forgot': S.lock.mode = 'forgot'; S.lock.err = ''; return render();
     case 'lk-cancel': S.lock.mode = 'pin'; S.lock.err = ''; return render();
+    case 'unlock': return unlock((($('#lk-pin') || {}).value || '').trim());
     case 'lk-reset': {
       const L = S.lock, pw = ($('#fg-pw') || {}).value || '', a = ($('#fg-pin') || {}).value || '', b = ($('#fg-pin2') || {}).value || '';
-      if (!/^\d{4,8}$/.test(a)){ L.err = 'Новый PIN — от 4 до 8 цифр.'; return render(); }
-      if (weakPin(a)){ L.err = 'Слишком простой PIN.'; return render(); }
-      if (a !== b){ L.err = 'Новый PIN не совпадает.'; return render(); }
+      if (L.busy) return;
+      const pe = newPinError(a, b);
+      if (pe){ L.err = pe; return render(); }
       L.busy = true; L.err = ''; render();
-      try { await unwrapPkcs8(pw, S.settings.security.wrap); }
+      let pkcs8;
+      try { pkcs8 = await unwrapPkcs8(pw, S.settings.security.wrap); }
       catch (err){ L.busy = false; L.err = 'Неверный пароль клиники.'; return render(); }
-      const salt = b64(rnd(16));
-      Object.assign(S.settings.security, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(a, salt, PIN_ITER)});
-      saveSettings(); await flush();
-      S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0}; S.locked = false; lastAct = Date.now();
-      render(); toast('PIN изменён.'); autoBackup();
+      try { await openWith(await resetPin(pw, pkcs8, a)); toast('PIN изменён.'); }
+      catch (err){ console.error(err); S.dk = null; L.busy = false; L.err = 'Не получилось сменить PIN: ' + (err.message || err); render(); }
       return;
     }
     case 'lock': return lockNow();
@@ -2325,22 +2514,31 @@ async function onClick(e){
     }
     case 'change-pin': {
       const X = S.sec, sec = S.settings.security; X.pinErr = X.pinOk = '';
+      if (X.busy) return;
       const cur = ($('#sp-cur') || {}).value || '', a = ($('#sp-new') || {}).value || '', b = ($('#sp-new2') || {}).value || '';
-      if (!/^\d{4,8}$/.test(a)){ X.pinErr = 'Новый PIN — от 4 до 8 цифр.'; return render(); }
-      if (weakPin(a)){ X.pinErr = 'Слишком простой PIN.'; return render(); }
-      if (a !== b){ X.pinErr = 'Новый PIN не совпадает.'; return render(); }
+      const pe = newPinError(a, b);
+      if (pe){ X.pinErr = pe; return render(); }
+      if (!sec.dkPin){ X.pinErr = 'Сначала заблокируйте программу и войдите заново.'; return render(); }
       X.busy = true; render();
-      const ok = (await pinHash(cur, sec.pinSalt, sec.pinIter)) === sec.pinHash;
-      if (!ok){ X.busy = false; X.pinErr = 'Текущий PIN неверный.'; return render(); }
-      const salt = b64(rnd(16));
-      Object.assign(sec, {pinSalt: salt, pinIter: PIN_ITER, pinHash: await pinHash(a, salt, PIN_ITER)});
+      let raw;
+      try { raw = await unwrapDk(cur, sec.dkPin); }
+      catch (err){
+        X.busy = false;
+        await pinFailed();   // подбор PIN через настройки тоже считается
+        if (S.lock.fails >= 5){ lockNow(); return; }
+        X.pinErr = 'Текущий PIN неверный.'; return render();
+      }
+      sec.dkPin = await wrapDk(a, raw); raw.fill(0);
+      delete sec.shortPin;
+      S.lock.fails = 0; S.lock.until = 0; S.lock.err = ''; await saveLock();
       saveSettings(); await flush(); X.busy = false; X.pinOk = 'PIN изменён.'; return render();
     }
     case 'change-pw': {
       const X = S.sec, sec = S.settings.security; X.pwErr = X.pwOk = '';
+      if (X.busy) return;
       const cur = ($('#sw-cur') || {}).value || '', a = ($('#sw-new') || {}).value || '', b = ($('#sw-new2') || {}).value || '';
-      if (a.length < 8){ X.pwErr = 'Новый пароль — не короче 8 знаков.'; return render(); }
-      if (a !== b){ X.pwErr = 'Новый пароль не совпадает.'; return render(); }
+      const pe = newPwError(a, b);
+      if (pe){ X.pwErr = pe; return render(); }
       X.busy = true; render();
       let pkcs8;
       try { pkcs8 = await unwrapPkcs8(cur, sec.wrap); } catch (err){ X.busy = false; X.pwErr = 'Текущий пароль клиники неверный.'; return render(); }
@@ -2356,7 +2554,8 @@ async function onClick(e){
       if (!confirm('Удалить всех пациентов, визиты, планы и настройки с этого компьютера?\n\nЭто нельзя отменить. Восстановить можно только из сохранённой копии.')) return render();
       pending.clear(); await saving.catch(() => {});
       await DB.write(STORES.map(s => ({op: 'clear', store: s})));
-      S.settings = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
+      S.settings = null; S.dk = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
+      S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
       S.ui = freshUi(); S.setup = freshSetup(); S.sec = {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false};
       document.getElementById('datalists').innerHTML = '';
       render(); toast('Все данные с этого компьютера удалены.'); return;
@@ -2437,7 +2636,7 @@ async function onChange(e){
 }
 
 const ENTER_ACT = {'su-name': 'su-next', 'su-doctor': 'su-next', 'su-pin': 'su-next', 'su-pin2': 'su-next', 'su-pw': 'su-finish', 'su-pw2': 'su-finish',
-  'fg-pw': 'lk-reset', 'fg-pin': 'lk-reset', 'fg-pin2': 'lk-reset', 'rs-pw': 'restore', 'sp-cur': 'change-pin', 'sp-new': 'change-pin', 'sp-new2': 'change-pin',
+  'lk-pin': 'unlock', 'fg-pw': 'lk-reset', 'fg-pin': 'lk-reset', 'fg-pin2': 'lk-reset', 'rs-pw': 'restore', 'sp-cur': 'change-pin', 'sp-new': 'change-pin', 'sp-new2': 'change-pin',
   'sw-cur': 'change-pw', 'sw-new': 'change-pw', 'sw-new2': 'change-pw'};
 function onKey(e){
   if (e.key === 'Escape' && S.ui.modal){ closeModal(); return; }
@@ -2459,7 +2658,7 @@ document.addEventListener('click', e => { onClick(e).catch(err => { console.erro
 document.addEventListener('input', onInput);
 document.addEventListener('change', e => { onChange(e).catch(err => { console.error(err); toast('Ошибка: ' + (err.message || err)); }); });
 document.addEventListener('keydown', onKey);
-document.addEventListener('submit', e => { const fm = e.target.closest('form[data-form="unlock"]'); if (!fm) return; e.preventDefault(); unlock((($('#lk-pin') || {}).value || '').trim()); });
+document.addEventListener('submit', e => e.preventDefault());
 document.getElementById('overlay').addEventListener('click', e => { if (e.target.id === 'overlay') closeModal(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
 window.addEventListener('pagehide', () => { flush(); });
@@ -2482,19 +2681,24 @@ function oneTab(){
 }
 async function boot(){
   S.ui = freshUi();
+  // только защищённое соединение: по http страницу могли бы подменить по дороге
+  if (location.protocol === 'http:' && !LOCAL){ location.replace('https://' + location.host + location.pathname + location.search); return; }
+  // внутри чужого сайта (iframe) не работаем: так нельзя подсунуть программу под чужие кнопки
+  let framed = true; try { framed = window.top !== window.self; } catch (e){}
+  if (framed){ S.fatal = 'frame'; return render(); }
   if (!window.indexedDB || !window.crypto || !crypto.subtle){ S.fatal = 'browser'; return render(); }
   if (!(await oneTab())){ S.fatal = 'tab'; return render(); }
-  try { await DB.open(); await loadAll(); }
+  try { await DB.open(); await loadSettings(); }
   catch (e){ console.error(e); S.fatal = 'db'; S.fatalMsg = String(e && e.message || e); return render(); }
   S.locked = !!S.settings;
   renderDatalists();
   render();
   checkStorage();
-  if ('serviceWorker' in navigator && (location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))){
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || LOCAL)){
     navigator.serviceWorker.register('sw.js').catch(err => console.warn('sw', err));
   }
 }
-if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) window.__kx = {S, flush, lockNow};   // только для проверок на этом компьютере
+if (LOCAL) window.__kx = {S, flush, lockNow};   // только для проверок на этом компьютере
 boot();
 })();
 </script>
