@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-GybSxxq9oiyjXq/jX3F7ueSRWlfq5+pyZ6rRmLTFo/0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-T2dmvpJTdpqW8lHMyslD0n2S/Rc5eS4gEkh6JguDHT0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -123,6 +123,11 @@ textarea{resize:vertical;min-height:84px;line-height:1.45}
 .steps-dots span.on{background:var(--accent)}
 .pin-input{font-size:22px!important;letter-spacing:.35em;text-align:center;font-family:var(--mono)}
 .secret{-webkit-text-security:disc}
+.devno{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface-2);border:1px dashed var(--border);border-radius:10px;padding:10px 14px}
+.devno b{font-size:22px;letter-spacing:.12em;color:var(--text)}
+.kv{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.kv b{font-size:15px;color:var(--text)}
+#act-code{font-size:13px;word-break:break-all;resize:vertical}
 .gate .linkish{background:none;border:0;padding:0;color:var(--accent-ink);font-weight:600;font-size:13px;text-decoration:underline;text-underline-offset:2px}
 .fatal{max-width:560px}
 
@@ -515,7 +520,9 @@ table.rep td:first-child{font-weight:600}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.3';
+const VERSION = '1.4';
+// открытый ключ Kirenix для проверки кодов активации (закрытый — только у Kiren на Mac); подставляет build.py
+const LICENSE_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDAaEw+t+T4hiv+ouo0REvGa/pMCTHAdhGr5JU7Z4UI9HD5XT7kiIHrXn3S/iQ6xLwpHDMJRQut+0q4E7UN/hFg==';
 const DB_NAME = 'kirenix-klinika';
 const KEK_ITER = 600000;      // PIN → ключ, которым зашифрован ключ данных
 const PW_ITER = 600000;       // пароль клиники → ключ, которым зашифрован закрытый ключ клиники (старые копии: 310 000)
@@ -681,6 +688,7 @@ const S = {
   lock: {mode: 'pin', err: '', busy: false, fails: 0, until: 0},
   restore: {file: null, err: '', busy: false},
   sec: {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false},
+  lic: {device: '', ok: false, code: '', until: '', at: 0, expired: false, soon: false, daysLeft: null, err: '', busy: false, mode: ''},
   persist: null, usage: null, saveState: 'ok', installEvt: null
 };
 const pat = id => S.patients.get(id);
@@ -835,6 +843,85 @@ async function decRec(key, store, r){
   return o;
 }
 const privFrom = pkcs8 => crypto.subtle.importKey('pkcs8', pkcs8, {name: 'ECDH', namedCurve: 'P-256'}, false, ['deriveKey', 'deriveBits']);
+
+/* ---------- активация: один код — один компьютер ----------
+   Номер компьютера — 8 случайных знаков, хранится в этом браузере. Код выдаёт Kirenix: в нём номер компьютера и срок
+   «оплачено до» (или без срока), подписанные закрытым ключом Kirenix (ECDSA P-256). Программа проверяет подпись открытым
+   ключом — интернет не нужен. После срока карты можно смотреть и печатать, а новые приёмы — только после нового кода. */
+const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function b32enc(bytes){
+  let bits = 0, val = 0, out = '';
+  for (const b of bytes){ val = ((val << 8) | b) & 0xFFFF; bits += 8; while (bits >= 5){ out += B32[(val >>> (bits - 5)) & 31]; bits -= 5; } }
+  if (bits > 0) out += B32[(val << (5 - bits)) & 31];
+  return out;
+}
+function b32dec(str){
+  const s = String(str || '').toUpperCase().replace(/[\s\-–—_.]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  let bits = 0, val = 0; const out = [];
+  for (const ch of s){ const i = B32.indexOf(ch); if (i < 0) return null; val = ((val << 5) | i) & 0xFFFF; bits += 5; if (bits >= 8){ out.push((val >>> (bits - 8)) & 255); bits -= 8; } }
+  return new Uint8Array(out);
+}
+const devFmt = id => id ? id.slice(0, 4) + '-' + id.slice(4) : '';
+const LIC_EPOCH = Date.UTC(2026, 0, 1);
+let licKeyP = null;
+const licKey = () => licKeyP || (licKeyP = crypto.subtle.importKey('spki', unb64(LICENSE_PUB), {name: 'ECDSA', namedCurve: 'P-256'}, false, ['verify']));
+/* код: 1 байт версии, 5 байт номера компьютера, 2 байта срока (дни с 01.01.2026, 0 — без срока), 1 запасной, 64 байта подписи */
+async function readCode(code){
+  const b = b32dec(code);
+  if (!b || b.length !== 73 || b[0] !== 1) return null;
+  const payload = b.slice(0, 9);
+  let ok = false;
+  try { ok = await crypto.subtle.verify({name: 'ECDSA', hash: 'SHA-256'}, await licKey(), b.slice(9), payload); } catch (e){ ok = false; }
+  if (!ok) return null;
+  const days = (payload[6] << 8) | payload[7];
+  return {device: b32enc(payload.slice(1, 6)), until: days ? new Date(LIC_EPOCH + days * 86400000).toISOString().slice(0, 10) : ''};
+}
+function licDates(L){
+  L.expired = !!L.until && L.until < todayIso();
+  L.daysLeft = L.until ? Math.round((parse(L.until) - parse(todayIso())) / 86400000) : null;
+  L.soon = !L.expired && L.daysLeft !== null && L.daysLeft <= 7;
+}
+/* при запуске: номер компьютера (создаётся один раз) и сохранённый код */
+async function loadLicense(){
+  const L = S.lic;
+  let dev = await DB.get('kv', 'device');
+  if (!dev || !/^[0-9A-HJKMNP-TV-Z]{8}$/.test(dev.id)){
+    dev = {k: 'device', id: b32enc(rnd(5)), createdAt: Date.now()};
+    await DB.write([{op: 'put', store: 'kv', value: dev}]);
+  }
+  L.device = dev.id;
+  const rec = await DB.get('kv', 'license');
+  const got = rec && rec.code ? await readCode(rec.code) : null;
+  L.ok = !!got && got.device === L.device;
+  L.code = L.ok ? rec.code : ''; L.until = L.ok ? got.until : ''; L.at = L.ok ? rec.at || 0 : 0;
+  licDates(L);
+}
+async function activate(code){
+  const L = S.lic; L.err = '';
+  let got = await readCode(code);
+  if (!got){   // вставили всё сообщение целиком — найдём в нём сам код
+    for (const t of String(code).match(/[0-9A-Za-z]{100,}/g) || []){ got = await readCode(t); if (got){ code = t; break; } }
+  }
+  if (!got){ L.err = 'Код не подходит. Скопируйте его из сообщения целиком.'; return false; }
+  if (got.device !== L.device){ L.err = 'Этот код выдан для другого компьютера (номер в коде ' + devFmt(got.device) + '). Номер этого компьютера — ' + devFmt(L.device) + ': попросите код для него.'; return false; }
+  if (got.until && got.until < todayIso()){ L.err = 'Срок этого кода закончился ' + fmtDot(got.until) + '. Попросите новый код.'; return false; }
+  const rec = {k: 'license', code: b32enc(b32dec(code)), device: L.device, until: got.until, at: Date.now()};
+  await DB.write([{op: 'put', store: 'kv', value: rec}]);
+  Object.assign(L, {ok: true, code: rec.code, until: got.until, at: rec.at, mode: ''});
+  licDates(L);
+  return true;
+}
+/* номер компьютера и код переживают «Удалить все данные» и восстановление из копии: они про компьютер, а не про карты */
+function keepLicenseOps(){
+  const L = S.lic, ops = [{op: 'put', store: 'kv', value: {k: 'device', id: L.device, createdAt: Date.now()}}];
+  if (L.ok) ops.push({op: 'put', store: 'kv', value: {k: 'license', code: L.code, device: L.device, until: L.until, at: L.at}});
+  return ops;
+}
+function licBlocked(){
+  if (!S.lic.expired) return false;
+  toast('Срок кода активации закончился ' + fmtDot(S.lic.until) + '. Новые приёмы — после нового кода; карты можно смотреть и печатать.', 7000);
+  return true;
+}
 async function makeClinicKeys(pw){
   const kp = await crypto.subtle.generateKey({name: 'ECDH', namedCurve: 'P-256'}, true, ['deriveKey', 'deriveBits']);
   const pub = await crypto.subtle.exportKey('jwk', kp.publicKey);
@@ -1027,7 +1114,7 @@ async function replaceAll(data, priv){
     try { raw = new Uint8Array(await openSealed(priv, data.settings.security.dkBox)); } catch (e){ throw userErr('Копия повреждена — открыть её не получилось.'); }
     key = await importDk(raw); raw.fill(0);
   }
-  const ops = STORES.map(s => ({op: 'clear', store: s}));
+  const ops = STORES.map(s => ({op: 'clear', store: s})).concat(keepLicenseOps());
   ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: data.settings}});
   for (const st of REC_STORES) for (const x of data[st]) ops.push({op: 'put', store: st, value: key ? await encRec(key, st, x) : x});
   pending.clear();
@@ -1083,6 +1170,7 @@ function render(){
   resetTpl();
   let html;
   if (S.fatal) html = renderFatal();
+  else if (!S.lic.ok || (S.lic.mode === 'renew' && !S.locked)) html = renderActivate();
   else if (!S.settings) html = renderSetup();
   else if (S.locked) html = renderLock();
   else html = renderShell();
@@ -1103,6 +1191,25 @@ function renderFatal(){
   return '<div class="gate"><div class="card stack fatal">' + brandBox('') + '<h2>' + msg[0] + '</h2><p>' + msg[1] + '</p>' +
     (S.fatalMsg ? '<p class="note mono">' + esc(S.fatalMsg) + '</p>' : '') +
     (S.fatal === 'frame' ? '' : '<button type="button" class="btn btn-primary" data-act="reload">Обновить страницу</button>') + '</div></div>';
+}
+
+/* активация: номер компьютера и поле для кода */
+function renderActivate(){
+  const L = S.lic, renew = L.ok;
+  const status = !renew ? '' : L.expired ? '<div class="banner bad" style="margin:0"><span>Срок кода закончился ' + fmtDot(L.until) + '.</span></div>'
+    : '<p class="note">Сейчас код действует ' + (L.until ? 'до ' + fmtDot(L.until) : 'без срока') + '.</p>';
+  return '<div class="gate"><div class="card stack">' + brandBox('') +
+    '<h2>' + (renew ? 'Новый код активации' : 'Активация программы') + '</h2>' + status +
+    '<p class="small">Kirenix Клиника работает по коду активации: один код — один компьютер. Отправьте нам номер этого компьютера — пришлём код.</p>' +
+    '<div class="devno"><span class="small muted">Номер этого компьютера</span><b class="mono" id="dev-no">' + devFmt(L.device) + '</b>' +
+      '<button type="button" class="btn small" data-act="copy-dev">Скопировать</button></div>' +
+    '<p class="note">Куда отправить: Telegram @aikiren или MAX — туда, где вы переписываетесь с Kirenix.</p>' +
+    field('Код активации', '<textarea id="act-code" rows="4" class="mono" spellcheck="false" autocomplete="off" placeholder="Вставьте код из сообщения" data-autofocus' + (L.busy ? ' disabled' : '') + '></textarea>', true) +
+    errBox(L.err) +
+    '<div class="row">' + (renew ? '<button type="button" class="btn" data-act="lic-back"' + (L.busy ? ' disabled' : '') + '>Назад</button>' : '') +
+      '<button type="button" class="btn btn-primary" style="flex:1" data-act="activate"' + (L.busy ? ' disabled' : '') + '>' + (L.busy ? 'Проверяю…' : 'Активировать') + '</button></div>' +
+    (renew ? '' : '<p class="note">Данные пациентов хранятся только на этом компьютере. Для активации в интернет ничего не отправляется: код проверяется прямо здесь.</p>') +
+    '</div></div>';
 }
 
 /* первая настройка */
@@ -1432,6 +1539,9 @@ const IS_SAFARI = navigator.vendor === 'Apple Computer, Inc.' && !/CriOS|FxiOS|E
 const SAFARI_WARN = '<div class="banner bad" role="alert"><span><b>Откройте программу в Google Chrome.</b> Safari стирает данные сайта, если его не открывать 7 дней, — карты пациентов могут пропасть.</span></div>';
 function banners(){
   let out = IS_SAFARI ? SAFARI_WARN : '';
+  const L = S.lic;
+  if (L.expired) out += '<div class="banner bad" role="alert"><span><b>Срок кода активации закончился ' + fmtDot(L.until) + '.</b> Карты можно смотреть и печатать, новые приёмы — после нового кода. Напишите нам: Telegram @aikiren.</span><button type="button" class="btn small" data-act="lic-renew">Ввести новый код</button></div>';
+  else if (L.soon) out += '<div class="banner"><span><b>Код активации действует до ' + fmtDot(L.until) + '.</b> Чтобы работать дальше, попросите у нас новый код.</span><button type="button" class="btn small" data-act="lic-renew">Ввести новый код</button></div>';
   if (S.settings.security.shortPin && !(S.ui.view === 'settings' && S.ui.stab === 'security')) out += '<div class="banner"><span><b>PIN короче 6 цифр.</b> Такой проще подобрать — смените его на 6–8 цифр.</span><button type="button" class="btn small" data-act="goto-settings" data-tab="security">Сменить PIN</button></div>';
   if (!clean(S.settings.clinic.legal) && S.ui.view !== 'settings') out += '<div class="banner info"><span><b>Для согласий впишите полное название и адрес клиники.</b> Пока их нет, на согласиях будет пустая строка.</span><button type="button" class="btn small" data-act="goto-docs">Вписать</button></div>';
   if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место. Не закрывайте программу.</span><button type="button" class="btn small" data-act="retry-save">Сохранить ещё раз</button></div>';
@@ -1452,7 +1562,7 @@ function helpBody(){
       '<div class="flow-box accent"><b>Kirenix Клиника</b><span>карта, приём, согласия, план, печать</span></div></div></div>' +
     '<section class="g-sec"><h3>Один раз в начале</h3><ol class="g-steps">' +
       '<li><b>Откройте программу в Google Chrome</b> на ноутбуке специалиста. Чтобы она открывалась отдельным окном, как обычная программа, нажмите в Chrome значок установки справа в адресной строке.</li>' +
-      '<li><b>Первый запуск.</b> Программа спросит название клиники, ФИО специалиста, потом PIN и пароль клиники. PIN — 6–8 цифр, специалист вводит его при каждом входе. Пароль клиники (от 10 знаков) придумывает руководитель и записывает: он нужен, если забыли PIN или нужно восстановить данные. Мы этот пароль не знаем.</li>' +
+      '<li><b>Первый запуск.</b> Сначала программа покажет номер компьютера: отправьте его нам и вставьте код активации из ответа. Один код — один компьютер. Потом программа спросит название клиники, ФИО специалиста, PIN и пароль клиники. PIN — 6–8 цифр, специалист вводит его при каждом входе. Пароль клиники (от 10 знаков) придумывает руководитель и записывает: он нужен, если забыли PIN или нужно восстановить данные. Мы этот пароль не знаем.</li>' +
       '<li><b>Настройки.</b> Нажмите ' + kb('Настройки') + '. В разделе «Клиника и специалист» загрузите логотип и QR-код для бланков, впишите телефон, полное название и адрес клиники. В разделе «Согласия» проверьте тексты согласий.</li>' +
     '</ol></section>' +
     '<section class="g-sec"><h3>Как проходит приём — по порядку</h3><ol class="g-steps">' +
@@ -1487,7 +1597,7 @@ function helpBody(){
     '<section class="g-sec"><h3>Чтобы данные не потерялись</h3><ul>' +
       '<li>Каждый день при первом входе программа сама сохраняет зашифрованную копию в папку «Загрузки». Раз в неделю переносите свежую копию на флешку.</li>' +
       '<li>Не открывайте программу в режиме инкогнито и не очищайте в Chrome «Файлы cookie и другие данные сайтов» — так стираются карты. Если это случилось, восстановите данные из копии.</li>' +
-      '<li>Новый ноутбук: откройте программу на нём и на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
+      '<li>Новый ноутбук: откройте программу на нём, попросите у нас код для его номера, затем на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
       '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Чтобы карты не увидели чужие</h3><ul>' +
@@ -1656,6 +1766,7 @@ function lastSame(v){
 }
 function startVisit(pid, procId){
   const pr = procById(procId), p = pat(pid); if (!pr || !p) return;
+  if (licBlocked()) return render();
   if (visitsOf(pid).some(v => v.status !== 'done')){ toast('У пациента уже есть незавершённый приём.'); return; }
   const v = {id: uid(), pid, date: todayIso(), time: nowHM(), procId: pr.id, procName: pr.name,
     flags: {drug: !!pr.drug, inject: !!pr.inject, consent: !!pr.consent, memo: !!pr.memoOn},
@@ -2074,7 +2185,11 @@ function setClinic(){
       sArea('Полное название и адрес клиники', 'clinic.legal', 3) +
       '<p class="note">Например: ООО «Название», ИНН 0000000000, адрес: г. Казань, ул. Примерная, д. 1.</p></section>' +
     '<section class="card stack"><h3>Логотип и QR-код</h3>' + howto('Печатаются в шапке бланков «План лечения» и «Рекомендации», записи о приёме, памятки и согласий. Если логотипа нет, печатается название клиники.') +
-      imgPick('logo', 'Логотип') + imgPick('qr', 'QR-код «Отдел заботы»', true) + '</section>';
+      imgPick('logo', 'Логотип') + imgPick('qr', 'QR-код «Отдел заботы»', true) + '</section>' +
+    '<section class="card stack"><h3>Активация</h3>' + howto('Программа работает по коду активации: один код — один компьютер. Когда срок кода подходит к концу, попросите новый код и введите его здесь.') +
+      '<div class="sgrid"><div class="kv"><span>Номер этого компьютера</span><b class="mono">' + devFmt(S.lic.device) + '</b></div>' +
+      '<div class="kv"><span>Код действует</span><b>' + (S.lic.until ? 'до ' + fmtDot(S.lic.until) + (S.lic.expired ? ' — срок закончился' : '') : 'без срока') + '</b></div></div>' +
+      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button></div></section>';
 }
 function setProcs(){
   const units = ['ЕД', 'мл', 'мг', 'ед.', ''];
@@ -2287,7 +2402,7 @@ async function lockNow(){
   if (!S.settings || S.locked) return;
   hideTpl();
   const gen = ++lockGen;
-  S.locked = true; S.ui.modal = null; S.ui.q = S.ui.sq = S.ui.jq = S.ui.dq = '';
+  S.locked = true; S.ui.modal = null; S.lic.mode = ''; S.ui.q = S.ui.sq = S.ui.jq = S.ui.dq = '';
   Object.assign(S.lock, {mode: 'pin', err: '', busy: false});
   const pr = document.getElementById('print-root'); if (pr) pr.innerHTML = '';
   render();
@@ -2380,6 +2495,27 @@ async function onClick(e){
     case 'lk-forgot': S.lock.mode = 'forgot'; S.lock.err = ''; return render();
     case 'lk-cancel': S.lock.mode = 'pin'; S.lock.err = ''; return render();
     case 'unlock': return unlock((($('#lk-pin') || {}).value || '').trim());
+    /* активация */
+    case 'activate': {
+      const L = S.lic; if (L.busy) return;
+      const code = (($('#act-code') || {}).value || '').trim();
+      if (!code){ L.err = 'Вставьте код из сообщения.'; return render(); }
+      L.busy = true; L.err = ''; render();
+      const was = L.ok;
+      let ok = false;
+      try { ok = await activate(code); } catch (err){ console.error(err); L.err = 'Не получилось сохранить код: ' + (err.message || err); }
+      L.busy = false; render();
+      if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : 'Программа активирована на этом компьютере.', 5000);
+      else { const ta = $('#act-code'); if (ta) ta.value = code; }
+      return;
+    }
+    case 'copy-dev': {
+      try { await navigator.clipboard.writeText(devFmt(S.lic.device)); toast('Номер скопирован: ' + devFmt(S.lic.device)); }
+      catch (err){ toast('Скопируйте номер вручную: ' + devFmt(S.lic.device)); }
+      return;
+    }
+    case 'lic-renew': S.lic.mode = 'renew'; S.lic.err = ''; render(); return window.scrollTo(0, 0);
+    case 'lic-back': S.lic.mode = ''; S.lic.err = ''; return render();
     case 'lk-reset': {
       const L = S.lock, pw = ($('#fg-pw') || {}).value || '', a = ($('#fg-pin') || {}).value || '', b = ($('#fg-pin2') || {}).value || '';
       if (L.busy) return;
@@ -2399,7 +2535,7 @@ async function onClick(e){
       S.ui.view = el.dataset.tab || 'today'; S.ui.pid = S.ui.vid = S.ui.edit = S.ui.start = S.ui.batch = null; S.ui.modal = null; S.ui.from = ''; S.ui.ptab = 'card';
       render(); return window.scrollTo(0, 0);
     }
-    case 'start-new': S.ui.start = {step: 'who'}; S.ui.sq = ''; S.ui.pid = S.ui.vid = S.ui.edit = null; render(); return window.scrollTo(0, 0);
+    case 'start-new': if (licBlocked()) return; S.ui.start = {step: 'who'}; S.ui.sq = ''; S.ui.pid = S.ui.vid = S.ui.edit = null; render(); return window.scrollTo(0, 0);
     case 'start-back': S.ui.start = {step: 'who'}; render(); return window.scrollTo(0, 0);
     case 'start-pick': { const p = pat(el.dataset.pid); if (!p) return; p.openedAt = Date.now(); queue('patients', p); S.ui.start = {step: 'proc', pid: p.id}; render(); return window.scrollTo(0, 0); }
     case 'start-proc': S.ui.start = null; return startVisit(el.dataset.pid, el.dataset.proc);
@@ -2420,7 +2556,7 @@ async function onClick(e){
     case 'persist': await askPersist(); await checkStorage(); render(); toast(S.persist ? 'Браузер будет хранить данные постоянно.' : 'Браузер пока не согласился. Установите программу как приложение и попробуйте ещё раз.', 6000); return;
     case 'install': if (S.installEvt){ S.installEvt.prompt(); try { await S.installEvt.userChoice; } catch (err){} S.installEvt = null; render(); } return;
     /* пациенты */
-    case 'new-patient': S.ui.edit = 'new'; S.ui.from = el.dataset.from || ''; S.ui.formErr = ''; S.ui.vid = null; render(); return window.scrollTo(0, 0);
+    case 'new-patient': if (licBlocked()) return; S.ui.edit = 'new'; S.ui.from = el.dataset.from || ''; S.ui.formErr = ''; S.ui.vid = null; render(); return window.scrollTo(0, 0);
     case 'edit-patient': S.ui.edit = el.dataset.pid; S.ui.formErr = ''; render(); return window.scrollTo(0, 0);
     case 'pf-cancel': S.ui.edit = null; S.ui.from = ''; S.ui.formErr = ''; render(); return window.scrollTo(0, 0);
     case 'pf-save': return savePatientForm();
@@ -2553,7 +2689,7 @@ async function onClick(e){
       X.busy = false;
       if (!confirm('Удалить всех пациентов, визиты, планы и настройки с этого компьютера?\n\nЭто нельзя отменить. Восстановить можно только из сохранённой копии.')) return render();
       pending.clear(); await saving.catch(() => {});
-      await DB.write(STORES.map(s => ({op: 'clear', store: s})));
+      await DB.write(STORES.map(s => ({op: 'clear', store: s})).concat(keepLicenseOps()));
       S.settings = null; S.dk = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
       S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
       S.ui = freshUi(); S.setup = freshSetup(); S.sec = {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false};
@@ -2688,7 +2824,7 @@ async function boot(){
   if (framed){ S.fatal = 'frame'; return render(); }
   if (!window.indexedDB || !window.crypto || !crypto.subtle){ S.fatal = 'browser'; return render(); }
   if (!(await oneTab())){ S.fatal = 'tab'; return render(); }
-  try { await DB.open(); await loadSettings(); }
+  try { await DB.open(); await loadLicense(); await loadSettings(); }
   catch (e){ console.error(e); S.fatal = 'db'; S.fatalMsg = String(e && e.message || e); return render(); }
   S.locked = !!S.settings;
   renderDatalists();
