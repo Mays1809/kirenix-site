@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-T2dmvpJTdpqW8lHMyslD0n2S/Rc5eS4gEkh6JguDHT0='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-uNXpSudEtXRid8EBkIAcD3UXh94yQKAboNXtCqJZYRk='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -520,7 +520,7 @@ table.rep td:first-child{font-weight:600}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.4';
+const VERSION = '1.4.1';
 // открытый ключ Kirenix для проверки кодов активации (закрытый — только у Kiren на Mac); подставляет build.py
 const LICENSE_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDAaEw+t+T4hiv+ouo0REvGa/pMCTHAdhGr5JU7Z4UI9HD5XT7kiIHrXn3S/iQ6xLwpHDMJRQut+0q4E7UN/hFg==';
 const DB_NAME = 'kirenix-klinika';
@@ -1557,8 +1557,8 @@ function banners(){
 const kb = (t, primary) => '<span class="kb' + (primary ? ' primary' : '') + '">' + t + '</span>';
 function helpBody(){
   return '<div class="guide-intro"><h2>Как работать в программе</h2>' +
-      '<p>Программа — медицинская карта для специалиста. Запись пациентов, телефоны и оплата остаются в YCLIENTS, как раньше. Всё медицинское — здесь: карта пациента, протокол процедуры, согласия, план лечения и рекомендации.</p>' +
-      '<div class="flow"><div class="flow-box"><b>YCLIENTS</b><span>запись, телефоны, оплата</span></div><div class="flow-arrow">пациент пришёл →</div>' +
+      '<p>Программа — медицинская карта для специалиста. Запись пациентов, телефоны и оплата остаются там, где вы их ведёте сейчас. Всё медицинское — здесь: карта пациента, протокол процедуры, согласия, план лечения и рекомендации.</p>' +
+      '<div class="flow"><div class="flow-box"><b>Запись и оплата</b><span>как сейчас, в вашей системе записи</span></div><div class="flow-arrow">пациент пришёл →</div>' +
       '<div class="flow-box accent"><b>Kirenix Клиника</b><span>карта, приём, согласия, план, печать</span></div></div></div>' +
     '<section class="g-sec"><h3>Один раз в начале</h3><ol class="g-steps">' +
       '<li><b>Откройте программу в Google Chrome</b> на ноутбуке специалиста. Чтобы она открывалась отдельным окном, как обычная программа, нажмите в Chrome значок установки справа в адресной строке.</li>' +
@@ -1566,7 +1566,7 @@ function helpBody(){
       '<li><b>Настройки.</b> Нажмите ' + kb('Настройки') + '. В разделе «Клиника и специалист» загрузите логотип и QR-код для бланков, впишите телефон, полное название и адрес клиники. В разделе «Согласия» проверьте тексты согласий.</li>' +
     '</ol></section>' +
     '<section class="g-sec"><h3>Как проходит приём — по порядку</h3><ol class="g-steps">' +
-      '<li><b>Запись.</b> Администратор записывает пациента в YCLIENTS, как обычно. В программе на этом шаге ничего делать не нужно.</li>' +
+      '<li><b>Запись.</b> Администратор записывает пациента, как обычно. В программе на этом шаге ничего делать не нужно.</li>' +
       '<li><b>Пациент пришёл.</b> Специалист открывает программу и вводит PIN. Открывается раздел «Сегодня».</li>' +
       '<li><b>Кто пришёл.</b> Нажмите ' + kb('+ Начать приём', 1) + ' и начните писать фамилию — пациент найдётся, нажмите на него. Пациент пришёл впервые? Нажмите ' + kb('+ Новый пациент', 1) + ' и заполните ФИО, дату рождения, аллергию и болезни. Телефон и паспорт не нужны.</li>' +
       '<li><b>Какая процедура.</b> Нажмите на нужную процедуру — откроется протокол приёма. Шаги идут сверху вниз:<ul>' +
@@ -1579,7 +1579,7 @@ function helpBody(){
         '<li>памятка после процедуры — текст уже есть, можно поправить.</li>' +
       '</ul>Всё сохраняется само, пока вы пишете.</li>' +
       '<li><b>Завершите.</b> Нажмите ' + kb('Завершить визит', 1) + '. Если что-то не заполнено, программа напишет, чего не хватает.</li>' +
-      '<li><b>Что дальше.</b> Вверху появится список: ' + kb('Запись о приёме') + ' — распечатать, вклеить в бумажную медкарту (форма 025/у) и подписать; ' + kb('Памятка') + ' — отдать пациенту; ' + kb('План лечения ↓') + ' — если нужен план или рекомендации: заполните строки и нажмите ' + kb('Бланк для печати') + '. Если вы прикрепляете планы в YCLIENTS, в окне печати выберите «Сохранить как PDF» и прикрепите файл в карточке клиента, как раньше.</li>' +
+      '<li><b>Что дальше.</b> Вверху появится список: ' + kb('Запись о приёме') + ' — распечатать, вклеить в бумажную медкарту (форма 025/у) и подписать; ' + kb('Памятка') + ' — отдать пациенту; ' + kb('План лечения ↓') + ' — если нужен план или рекомендации: заполните строки и нажмите ' + kb('Бланк для печати') + '. Если нужен файл, в окне печати выберите «Сохранить как PDF».</li>' +
       '<li><b>Готово.</b> Нажмите ' + kb('Готово — к приёмам за сегодня', 1) + '. Приём появится в списке «Проведено сегодня» и в «Журнале приёмов». Можно принимать следующего пациента.</li>' +
     '</ol></section>' +
     '<section class="g-sec"><h3>Где что найти</h3><ul>' +
