@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-uNXpSudEtXRid8EBkIAcD3UXh94yQKAboNXtCqJZYRk='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-eKgb4moUBT9hrH/vnA7/16wtGhrRB9SUxxVbwcRcsko='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -502,6 +502,15 @@ table.rep td:first-child{font-weight:600}
   #print-root .paper.guide .g-steps ul,#print-root .paper.guide .g-sec > ul{gap:3px}
   #print-root .paper.guide .flow{margin:8px 0 2px}
 }
+
+/* компьютер администратора: режим просмотра — кнопки правки скрыты, поля читаются как текст */
+body.view-only [data-act="start-new"],body.view-only [data-act="start-visit"],body.view-only [data-act="new-patient"],body.view-only [data-act="edit-patient"],
+body.view-only [data-act="reopen"],body.view-only [data-act="del-visit"],body.view-only [data-act="finish"],body.view-only [data-act="again"],
+body.view-only [data-act="plan-new"],body.view-only [data-act="plan-add"],body.view-only [data-act="plan-del"],body.view-only [data-act="dir-add"],body.view-only [data-act="dir-del"],
+body.view-only [data-act="cosm-add"],body.view-only [data-act="cosm-del"],body.view-only [data-act="pt-del"],body.view-only [data-act="backup"],body.view-only [data-act="doc-reset"]{display:none !important}
+body.view-only main input:disabled,body.view-only main textarea:disabled,body.view-only main select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text);cursor:default}
+body.view-only main input[type="checkbox"]:disabled{opacity:.85}
+body.view-only .who-am-i{color:var(--accent-ink);font-weight:600}
 </style>
 </head>
 <body>
@@ -520,7 +529,7 @@ table.rep td:first-child{font-weight:600}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.4.1';
+const VERSION = '1.5';
 // открытый ключ Kirenix для проверки кодов активации (закрытый — только у Kiren на Mac); подставляет build.py
 const LICENSE_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDAaEw+t+T4hiv+ouo0REvGa/pMCTHAdhGr5JU7Z4UI9HD5XT7kiIHrXn3S/iQ6xLwpHDMJRQut+0q4E7UN/hFg==';
 const DB_NAME = 'kirenix-klinika';
@@ -686,9 +695,9 @@ const S = {
   ui: null,   // заполняется freshUi() при запуске
   setup: {step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false},
   lock: {mode: 'pin', err: '', busy: false, fails: 0, until: 0},
-  restore: {file: null, err: '', busy: false},
+  restore: {file: null, err: '', busy: false, needPin: false},
   sec: {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false},
-  lic: {device: '', ok: false, code: '', until: '', at: 0, expired: false, soon: false, daysLeft: null, err: '', busy: false, mode: ''},
+  lic: {device: '', ok: false, code: '', until: '', at: 0, expired: false, soon: false, daysLeft: null, err: '', busy: false, mode: '', view: false},
   persist: null, usage: null, saveState: 'ok', installEvt: null
 };
 const pat = id => S.patients.get(id);
@@ -865,7 +874,8 @@ const devFmt = id => id ? id.slice(0, 4) + '-' + id.slice(4) : '';
 const LIC_EPOCH = Date.UTC(2026, 0, 1);
 let licKeyP = null;
 const licKey = () => licKeyP || (licKeyP = crypto.subtle.importKey('spki', unb64(LICENSE_PUB), {name: 'ECDSA', namedCurve: 'P-256'}, false, ['verify']));
-/* код: 1 байт версии, 5 байт номера компьютера, 2 байта срока (дни с 01.01.2026, 0 — без срока), 1 запасной, 64 байта подписи */
+/* код: 1 байт версии, 5 байт номера компьютера, 2 байта срока (дни с 01.01.2026, 0 — без срока), 1 байт отметок
+   (1 — компьютер администратора: только просмотр), 64 байта подписи */
 async function readCode(code){
   const b = b32dec(code);
   if (!b || b.length !== 73 || b[0] !== 1) return null;
@@ -874,7 +884,7 @@ async function readCode(code){
   try { ok = await crypto.subtle.verify({name: 'ECDSA', hash: 'SHA-256'}, await licKey(), b.slice(9), payload); } catch (e){ ok = false; }
   if (!ok) return null;
   const days = (payload[6] << 8) | payload[7];
-  return {device: b32enc(payload.slice(1, 6)), until: days ? new Date(LIC_EPOCH + days * 86400000).toISOString().slice(0, 10) : ''};
+  return {device: b32enc(payload.slice(1, 6)), until: days ? new Date(LIC_EPOCH + days * 86400000).toISOString().slice(0, 10) : '', view: (payload[8] & 1) === 1};
 }
 function licDates(L){
   L.expired = !!L.until && L.until < todayIso();
@@ -893,7 +903,7 @@ async function loadLicense(){
   const rec = await DB.get('kv', 'license');
   const got = rec && rec.code ? await readCode(rec.code) : null;
   L.ok = !!got && got.device === L.device;
-  L.code = L.ok ? rec.code : ''; L.until = L.ok ? got.until : ''; L.at = L.ok ? rec.at || 0 : 0;
+  L.code = L.ok ? rec.code : ''; L.until = L.ok ? got.until : ''; L.at = L.ok ? rec.at || 0 : 0; L.view = L.ok && !!got.view;
   licDates(L);
 }
 async function activate(code){
@@ -907,7 +917,7 @@ async function activate(code){
   if (got.until && got.until < todayIso()){ L.err = 'Срок этого кода закончился ' + fmtDot(got.until) + '. Попросите новый код.'; return false; }
   const rec = {k: 'license', code: b32enc(b32dec(code)), device: L.device, until: got.until, at: Date.now()};
   await DB.write([{op: 'put', store: 'kv', value: rec}]);
-  Object.assign(L, {ok: true, code: rec.code, until: got.until, at: rec.at, mode: ''});
+  Object.assign(L, {ok: true, code: rec.code, until: got.until, at: rec.at, mode: '', view: !!got.view});
   licDates(L);
   return true;
 }
@@ -921,6 +931,23 @@ function licBlocked(){
   if (!S.lic.expired) return false;
   toast('Срок кода активации закончился ' + fmtDot(S.lic.until) + '. Новые приёмы — после нового кода; карты можно смотреть и печатать.', 7000);
   return true;
+}
+/* режим просмотра для администратора (код с отметкой «просмотр»): карты из копии врача можно смотреть и печатать, но не менять */
+const viewMode = () => !!S.lic.view;
+const VIEW_BLOCK = new Set(['start-new', 'start-pick', 'start-proc', 'start-visit', 'new-patient', 'edit-patient', 'pf-save', 'pf-delete', 'map', 'pt-del', 'again', 'finish', 'reopen', 'del-visit',
+  'tpl', 'plan-new', 'plan-add', 'plan-del', 'dir-add', 'dir-del', 'cosm-add', 'cosm-del', 'doc-reset', 'img-del', 'proc-add', 'proc-del', 'change-pw', 'backup']);
+const VIEW_F = new Set(['q', 'sq', 'dq', 'jq', 'jperiod', 'rperiod', 'jproc', 'docproc']);
+const VIEW_IDS = new Set(['rs-pw', 'rs-pin', 'rs-pin2', 'sp-cur', 'sp-new', 'sp-new2', 'del-pw', 'doc-ids-proc', 'doc-memo-proc']);
+const viewInputOk = t => !!(t.dataset && (VIEW_F.has(t.dataset.f) || t.dataset.rs)) || VIEW_IDS.has(t.id);
+function viewLock(root){ root.querySelectorAll('input, textarea, select').forEach(el => { if (!viewInputOk(el)) el.disabled = true; }); }
+/* копия от того же врача — тот же ключ данных: проверяем, расшифрует ли новый ключ то, что зашифровано текущим */
+async function sameDk(priv, box){
+  if (!S.dk || !box) return false;
+  let raw;
+  try { raw = new Uint8Array(await openSealed(priv, box)); } catch (e){ return false; }
+  const k = await importDk(raw); raw.fill(0);
+  const iv = rnd(12), ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv}, S.dk, rnd(16));
+  try { await crypto.subtle.decrypt({name: 'AES-GCM', iv}, k, ct); return true; } catch (e){ return false; }
 }
 async function makeClinicKeys(pw){
   const kp = await crypto.subtle.generateKey({name: 'ECDH', namedCurve: 'P-256'}, true, ['deriveKey', 'deriveBits']);
@@ -1037,7 +1064,7 @@ function download(name, text){
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
 }
-async function makeBackup(auto){
+async function makeBackup(auto, forAdmin){
   if (!S.dk) throw new Error('программа заблокирована');
   await flush();
   const st = S.settings;
@@ -1053,12 +1080,12 @@ async function makeBackup(auto){
   download(name, JSON.stringify(file));
   st.backup.lastAt = createdAt; st.backup.lastDay = day;
   saveSettings(); flush();
-  toast((auto ? 'Копия за сегодня сохранена' : 'Копия сохранена') + ' в папку «Загрузки»: ' + name, 6500);
+  toast(forAdmin ? 'Копия для администратора сохранена в «Загрузки»: ' + name + '. Отправьте этот файл администратору.' : (auto ? 'Копия за сегодня сохранена' : 'Копия сохранена') + ' в папку «Загрузки»: ' + name, forAdmin ? 9000 : 6500);
   if (!S.locked && S.settings) render();
 }
 async function autoBackup(){
   const b = S.settings.backup;
-  if (!b.auto || !(S.patients.size || S.visits.size) || b.lastDay === todayIso()) return;
+  if (viewMode() || !b.auto || !(S.patients.size || S.visits.size) || b.lastDay === todayIso()) return;
   try { await makeBackup(true); } catch (e){ console.error(e); toast('Не удалось сохранить копию за сегодня. Сохраните её вручную в настройках.', 7000); }
 }
 const userErr = m => Object.assign(new Error(m), {user: true});
@@ -1107,13 +1134,20 @@ function sanitizeData(d){
   return Object.assign(d, {settings: st, patients, visits, plans});
 }
 /* восстановление: карты кладутся зашифрованными ключом данных из копии; копия версии 1.2 — как есть, зашифруется при первом входе */
-async function replaceAll(data, priv){
+async function replaceAll(data, priv, opt){
+  opt = opt || {};
   let key = null;
   if (data.settings.security.dkBox){
     let raw;
     try { raw = new Uint8Array(await openSealed(priv, data.settings.security.dkBox)); } catch (e){ throw userErr('Копия повреждена — открыть её не получилось.'); }
-    key = await importDk(raw); raw.fill(0);
+    key = await importDk(raw);
+    // компьютер администратора: свой PIN (новый или прежний), а не PIN врача из копии
+    if (opt.pin) data.settings.security.dkPin = await wrapDk(opt.pin, raw);
+    else if (opt.keepPin) data.settings.security.dkPin = opt.keepPin;
+    if (opt.pin || opt.keepPin) delete data.settings.security.shortPin;
+    raw.fill(0);
   }
+  if (opt.view) data.settings.viewCopy = {createdAt: data.createdAt, loadedAt: new Date().toISOString(), patients: data.patients.length, visits: data.visits.length};
   const ops = STORES.map(s => ({op: 'clear', store: s})).concat(keepLicenseOps());
   ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: data.settings}});
   for (const st of REC_STORES) for (const x of data[st]) ops.push({op: 'put', store: st, value: key ? await encRec(key, st, x) : x});
@@ -1123,11 +1157,13 @@ async function replaceAll(data, priv){
   S.locked = true; forgetData();
   S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
   await loadSettings();
+  return key;
 }
 async function doRestore(where){
   const R = S.restore, pwEl = $('#rs-pw'), pw = pwEl ? pwEl.value : '';
   if (!R.file){ R.err = 'Выберите файл копии.'; return render(); }
   if (!pw){ R.err = 'Введите пароль клиники.'; return render(); }
+  if (viewMode()) return viewRestore(R, pw);
   R.busy = true; R.err = ''; render();
   try {
     const got = await readBackup(R.file, pw), data = got.data;
@@ -1143,6 +1179,37 @@ async function doRestore(where){
     render(); toast('Копия восстановлена. Введите PIN специалиста — тот, что был в копии.', 7000);
   } catch (e){
     if (!e.user) console.error(e); R.busy = false; R.err = e.message || 'Не удалось восстановить копию.'; render();
+  }
+}
+/* компьютер администратора: открыть копию врача (первый раз — с новым PIN) или обновить её; в «Загрузки» ничего не сохраняем */
+async function viewRestore(R, pw){
+  let pin = '';
+  if (!S.settings || R.needPin){
+    const a = ($('#rs-pin') || {}).value || '', b = ($('#rs-pin2') || {}).value || '';
+    const pe = newPinError(a, b);
+    if (pe){ R.err = pe; return render(); }
+    pin = a;
+  }
+  R.busy = true; R.err = ''; render();
+  try {
+    const got = await readBackup(R.file, pw), data = got.data;
+    if (!data.settings.security.dkBox) throw userErr('Это копия из старой версии программы. Попросите врача сохранить новую копию.');
+    let keepPin = null;
+    if (!pin){
+      if (!(await sameDk(got.priv, data.settings.security.dkBox))){
+        R.needPin = true; R.busy = false; R.err = 'Эта копия из другой программы врача. Придумайте PIN для этого компьютера и откройте копию ещё раз.'; return render();
+      }
+      keepPin = S.settings.security.dkPin;
+    }
+    if (!confirm('Открыть копию от ' + fmtDT(data.createdAt) + '?\n\nВ копии пациентов: ' + data.patients.length + ', визитов: ' + data.visits.length + '.' +
+      (S.settings ? '\n\nДанные на этом компьютере заменятся данными из копии.' : ''))){ R.busy = false; return render(); }
+    const key = await replaceAll(data, got.priv, {pin, keepPin, view: true});
+    S.restore = {file: null, err: '', busy: false, needPin: false};
+    S.setup = freshSetup(); S.ui = freshUi();
+    await openWith(key);
+    toast('Открыта копия от ' + fmtDT(data.createdAt) + ': пациентов ' + data.patients.length + ', визитов ' + data.visits.length + '.', 6500);
+  } catch (e){
+    if (!e.user) console.error(e); R.busy = false; R.err = e.message || 'Не удалось открыть копию.'; render();
   }
 }
 const freshSetup = () => ({step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false});
@@ -1171,10 +1238,13 @@ function render(){
   let html;
   if (S.fatal) html = renderFatal();
   else if (!S.lic.ok || (S.lic.mode === 'renew' && !S.locked)) html = renderActivate();
-  else if (!S.settings) html = renderSetup();
+  else if (!S.settings) html = viewMode() ? renderViewSetup() : renderSetup();
   else if (S.locked) html = renderLock();
   else html = renderShell();
   app.innerHTML = html;
+  const ro = viewMode() && !!S.settings && !S.locked && !S.fatal && S.lic.ok && S.lic.mode !== 'renew';
+  document.body.classList.toggle('view-only', ro);
+  if (ro) viewLock(app);
   renderModal();
   setSaveState(S.saveState === 'err' ? 'err' : (pending.size || inFlight) ? 'pending' : 'ok');
   const af = app.querySelector('[data-autofocus]');
@@ -1212,6 +1282,14 @@ function renderActivate(){
     '</div></div>';
 }
 
+/* компьютер администратора: вместо первой настройки — открыть копию врача */
+function renderViewSetup(){
+  return '<div class="gate"><div class="card stack">' + brandBox('Компьютер администратора') + (IS_SAFARI ? SAFARI_WARN : '') +
+    '<h2>Режим просмотра</h2>' +
+    '<p class="small">Здесь администратор смотрит карты пациентов, планы лечения, приёмы и препараты из копии, которую сохраняет программа врача. Распечатать можно, менять записи на этом компьютере нельзя.</p>' +
+    '<p class="note">Попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать вам файл kirenix-klinika-kopiya-….json. Откройте его здесь паролем клиники.</p>' +
+    restoreForm('view-first') + '</div></div>';
+}
 /* первая настройка */
 function renderSetup(){
   const s = S.setup;
@@ -1242,14 +1320,17 @@ function renderSetup(){
     '<p class="note">Данные пациентов хранятся зашифрованными только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p></div></div>';
 }
 function restoreForm(where){
-  const R = S.restore;
-  return '<div class="stack"><h2' + (where === 'settings' ? ' style="font-size:15px"' : '') + '>Восстановить из копии</h2>' +
-    '<p class="note">Файл копии называется kirenix-klinika-kopiya-…json и лежит в папке «Загрузки» или на флешке. Нужен пароль клиники.</p>' +
+  const R = S.restore, view = where === 'view-first' || where === 'view';
+  const askPin = where === 'view-first' || (where === 'view' && R.needPin);
+  return '<div class="stack"><h2' + (where === 'settings' || where === 'view' ? ' style="font-size:15px"' : '') + '>' + (where === 'view-first' ? 'Открыть копию от врача' : where === 'view' ? 'Открыть новую копию' : 'Восстановить из копии') + '</h2>' +
+    '<p class="note">' + (view ? 'Файл копии называется kirenix-klinika-kopiya-…json, его присылает врач. Нужен пароль клиники.' : 'Файл копии называется kirenix-klinika-kopiya-…json и лежит в папке «Загрузки» или на флешке. Нужен пароль клиники.') + '</p>' +
     field('Файл копии', '<span class="row"><span class="btn file small">Выбрать файл<input type="file" id="rs-file" data-rs="file" accept=".json,application/json"' + (R.busy ? ' disabled' : '') + '></span><span class="small">' + (R.file ? esc(R.file.name) : 'файл не выбран') + '</span></span>', true) +
     field('Пароль клиники', secretIn('rs-pw', R.busy ? ' disabled' : ''), true) +
+    (askPin ? '<div class="sgrid">' + field('PIN для этого компьютера, 6–8 цифр', pinIn('rs-pin', R.busy ? ' disabled' : ''), true) + field('PIN ещё раз', pinIn('rs-pin2', R.busy ? ' disabled' : ''), true) + '</div>' +
+      '<p class="note">PIN спрашивается при каждом входе на этом компьютере. Не берите PIN врача.</p>' : '') +
     errBox(R.err) +
     '<div class="row">' + (where === 'setup' ? '<button type="button" class="btn" data-act="su-restore-cancel"' + (R.busy ? ' disabled' : '') + '>Назад</button>' : '') +
-      '<button type="button" class="btn' + (where === 'setup' ? ' btn-primary' : '') + '" data-act="restore" data-where="' + where + '"' + (R.busy ? ' disabled' : '') + '>' + (R.busy ? 'Восстанавливаю…' : 'Восстановить') + '</button></div></div>';
+      '<button type="button" class="btn' + (where === 'setup' || view ? ' btn-primary' : '') + '" data-act="restore" data-where="' + where + '"' + (R.busy ? ' disabled' : '') + '>' + (R.busy ? (view ? 'Открываю…' : 'Восстанавливаю…') : (view ? 'Открыть копию' : 'Восстановить')) + '</button></div></div>';
 }
 
 /* экран входа */
@@ -1269,13 +1350,13 @@ function renderLock(){
       '<div class="banner bad" role="alert" style="margin:0"><span>PIN ввели неверно ' + L.fails + ' раз подряд. Чтобы никто не подобрал PIN, вход теперь только через пароль клиники.</span></div>' +
       '<p class="note">Пароль клиники знает руководитель. Нажмите кнопку ниже, введите пароль и придумайте новый PIN.</p>' +
       '<button type="button" class="btn btn-primary wide" data-act="lk-forgot">Войти с паролем клиники</button>' +
-      '<p class="note">Специалист: ' + esc(st.doctor.fio) + '</p>';
+      '<p class="note">' + (viewMode() ? 'Компьютер администратора: режим просмотра' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>';
   } else {
     body = '<h2>Введите PIN</h2>' +
       '<div class="stack">' + pinIn('lk-pin', ' aria-label="PIN" data-autofocus' + dis) +
       errBox(L.err) +
       '<button type="button" class="btn btn-primary wide" data-act="unlock"' + dis + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></div>' +
-      '<p class="note">Специалист: ' + esc(st.doctor.fio) + '</p>' +
+      '<p class="note">' + (viewMode() ? 'Компьютер администратора: режим просмотра' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>' +
       '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>';
   }
   return '<div class="gate"><div class="card stack">' + brandBox(st.clinic.name) + body + '</div></div>';
@@ -1287,7 +1368,7 @@ function renderShell(){
   const st = S.settings, u = S.ui;
   const drafts = [...S.visits.values()].filter(v => v.status !== 'done').length;
   const head = '<header class="top"><div class="wrap"><div class="brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(st.clinic.name) + '</span></div></div>' +
-    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + esc(st.doctor.fio) + '</span>' +
+    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + (viewMode() ? 'Просмотр для администратора' : esc(st.doctor.fio)) + '</span>' +
     '<button type="button" class="btn small" data-act="nav-help" aria-pressed="' + (u.view === 'help') + '">Как работать</button>' +
     '<button type="button" class="btn small" data-act="nav-settings" aria-pressed="' + (u.view === 'settings') + '">Настройки</button>' +
     '<button type="button" class="btn small" data-act="lock">' + ICON_LOCK + 'Заблокировать</button></div></div>' +
@@ -1337,21 +1418,25 @@ const byTime = (a, b) => (a.date + a.time).localeCompare(b.date + b.time);
 
 /* «Сегодня»: кто сейчас на приёме и кто уже был */
 function renderToday(){
-  const t = todayIso(), all = [...S.visits.values()];
+  const t = todayIso(), all = [...S.visits.values()], view = viewMode();
   const going = all.filter(v => v.status !== 'done' && v.date === t).sort(byTime);
   const old = all.filter(v => v.status !== 'done' && v.date < t).sort(byTime).reverse();
   const done = all.filter(v => v.status === 'done' && v.date === t).sort(byTime);
   const day = new Date().toLocaleDateString('ru-RU', {weekday: 'long', day: 'numeric', month: 'long'});
-  let out = '<div class="page-head"><div><h1>Сегодня</h1><p>' + esc(cap(day)) + '</p></div><button type="button" class="btn btn-primary btn-lg" data-act="start-new">+ Начать приём</button></div>';
+  // врач сохраняет копию и отправляет файл администратору — у того режим просмотра
+  const forAdmin = view || !S.patients.size ? '' : '<section class="day-sec admin-copy"><h2>Копия для администратора</h2><p class="note">Чтобы администратор увидел приёмы у себя, сохраните копию и отправьте ему файл из папки «Загрузки». Файл зашифрован: открыть его можно только в программе и только паролем клиники.</p>' +
+    '<div class="row"><button type="button" class="btn" data-act="backup" data-for="admin">Копия для администратора</button></div></section>';
+  let out = '<div class="page-head"><div><h1>Сегодня</h1><p>' + esc(cap(day)) + '</p></div>' + (view ? '' : '<button type="button" class="btn btn-primary btn-lg" data-act="start-new">+ Начать приём</button>') + '</div>';
   if (!going.length && !old.length && !done.length){
+    if (view) return out + '<div class="card empty-state"><h2>Сегодня приёмов в копии нет</h2><p>Здесь видны приёмы из копии, которую прислал врач. Все прошлые приёмы — в «Журнале приёмов», карты и планы лечения — в «Пациентах».</p></div>';
     return out + '<div class="card empty-state"><h2>Пациент пришёл?</h2><p>Нажмите «Начать приём»: найдите пациента по фамилии или добавьте нового, выберите процедуру — дальше программа проведёт по шагам.</p>' +
-      '<div class="row" style="justify-content:center"><button type="button" class="btn btn-primary" data-act="start-new">+ Начать приём</button><button type="button" class="btn" data-act="nav-help">Как работать</button></div></div>';
+      '<div class="row" style="justify-content:center"><button type="button" class="btn btn-primary" data-act="start-new">+ Начать приём</button><button type="button" class="btn" data-act="nav-help">Как работать</button></div></div>' + forAdmin;
   }
   if (going.length) out += '<section class="day-sec"><h2>Идёт приём</h2><div class="vlist">' + going.map(v => visitRow(v)).join('') + '</div></section>';
-  if (old.length) out += '<section class="day-sec warn"><h2>Не завершены с прошлых дней</h2><p class="note">Откройте и завершите или удалите, если приём не состоялся.</p><div class="vlist">' + old.map(v => visitRow(v, true)).join('') + '</div></section>';
+  if (old.length) out += '<section class="day-sec warn"><h2>Не завершены с прошлых дней</h2><p class="note">' + (view ? 'Врач ещё не завершил эти приёмы.' : 'Откройте и завершите или удалите, если приём не состоялся.') + '</p><div class="vlist">' + old.map(v => visitRow(v, true)).join('') + '</div></section>';
   out += '<section class="day-sec"><h2>Проведено сегодня' + (done.length ? ' <span class="muted">· ' + done.length + '</span>' : '') + '</h2>' +
     (done.length ? '<div class="vlist">' + done.map(v => visitRow(v)).join('') + '</div>' : '<p class="note">Пока нет. Завершённые приёмы появятся здесь, а все прошлые — в «Журнале приёмов».</p>') + '</section>';
-  return out;
+  return out + forAdmin;
 }
 
 /* «Начать приём»: шаг 1 — кто пришёл, шаг 2 — какая процедура */
@@ -1540,6 +1625,14 @@ const SAFARI_WARN = '<div class="banner bad" role="alert"><span><b>Открой�
 function banners(){
   let out = IS_SAFARI ? SAFARI_WARN : '';
   const L = S.lic;
+  if (viewMode()){
+    const vc = S.settings.viewCopy || {};
+    if (L.expired) out += '<div class="banner bad" role="alert"><span><b>Срок кода активации закончился ' + fmtDot(L.until) + '.</b> Напишите нам: Telegram @aikiren.</span></div>';
+    out += '<div class="banner info view-banner"><span><b>Режим просмотра для администратора.</b> Данные из копии врача от ' + (vc.createdAt ? fmtDT(vc.createdAt) : '—') + '. Новые приёмы появятся, когда откроете свежую копию.</span>' +
+      (S.ui.view === 'settings' ? '' : '<button type="button" class="btn small" data-act="goto-settings" data-tab="">Открыть новую копию</button>') + '</div>';
+    if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место.</span></div>';
+    return out;
+  }
   if (L.expired) out += '<div class="banner bad" role="alert"><span><b>Срок кода активации закончился ' + fmtDot(L.until) + '.</b> Карты можно смотреть и печатать, новые приёмы — после нового кода. Напишите нам: Telegram @aikiren.</span><button type="button" class="btn small" data-act="lic-renew">Ввести новый код</button></div>';
   else if (L.soon) out += '<div class="banner"><span><b>Код активации действует до ' + fmtDot(L.until) + '.</b> Чтобы работать дальше, попросите у нас новый код.</span><button type="button" class="btn small" data-act="lic-renew">Ввести новый код</button></div>';
   if (S.settings.security.shortPin && !(S.ui.view === 'settings' && S.ui.stab === 'security')) out += '<div class="banner"><span><b>PIN короче 6 цифр.</b> Такой проще подобрать — смените его на 6–8 цифр.</span><button type="button" class="btn small" data-act="goto-settings" data-tab="security">Сменить PIN</button></div>';
@@ -1599,6 +1692,11 @@ function helpBody(){
       '<li>Не открывайте программу в режиме инкогнито и не очищайте в Chrome «Файлы cookie и другие данные сайтов» — так стираются карты. Если это случилось, восстановите данные из копии.</li>' +
       '<li>Новый ноутбук: откройте программу на нём, попросите у нас код для его номера, затем на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
       '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
+    '</ul></section>' +
+    '<section class="g-sec"><h3>Администратору: режим просмотра</h3><ul>' +
+      '<li>Чтобы администратор видел карты, планы лечения, приёмы и препараты на своём компьютере, мы присылаем для него отдельный код — режим просмотра.</li>' +
+      '<li>Врач в конце дня нажимает ' + kb('Копия для администратора') + ' на экране «Сегодня» и отправляет файл из «Загрузок» администратору. Файл зашифрован: открыть его можно только паролем клиники.</li>' +
+      '<li>Администратор открывает файл в программе: первый раз — на первом экране, потом — кнопкой ' + kb('Открыть новую копию') + ' вверху. Распечатать можно, менять записи на его компьютере нельзя.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Чтобы карты не увидели чужие</h3><ul>' +
       '<li>Карты пациентов на компьютере зашифрованы: без PIN их не открыть, даже через настройки браузера. После 10 неверных PIN подряд вход — только с паролем клиники.</li>' +
@@ -1814,7 +1912,7 @@ function stepState(v){
 function renderVisit(v){
   if (!v) return renderToday();
   const p = pat(v.pid); if (!p) return renderToday();
-  const locked = v.status === 'done', dis = locked ? ' disabled' : '';
+  const locked = v.status === 'done', ro = locked || viewMode(), dis = ro ? ' disabled' : '';
   const done = stepState(v);
   const step = (key, n, title, body) => '<div class="step' + (done[key] ? ' done' : '') + '" data-step="' + key + '" data-n="' + n + '"><div class="step-n">' + (done[key] ? ICON_CHECK : n) + '</div><div style="min-width:0"><h3>' + title + '</h3>' + body + '</div></div>';
   const list = [];
@@ -1834,8 +1932,8 @@ function renderVisit(v){
   if (v.flags.inject){
     const pts = v.points.map((q, i) => '<div class="pt"><span class="num-badge">' + (i + 1) + '</span><span class="muted">Укол ' + (i + 1) + '</span>' +
       '<input type="number" inputmode="decimal" min="0" step="' + v.step + '" data-f="pt" data-i="' + i + '" value="' + esc(q.u) + '" aria-label="Доза для укола ' + (i + 1) + ', ' + esc(v.unit) + '"' + dis + '>' +
-      (locked ? '<span></span>' : '<button type="button" class="btn-ghost btn" data-act="pt-del" data-i="' + i + '" aria-label="Удалить укол ' + (i + 1) + '">×</button>') + '</div>').join('');
-    list.push(['map', 'Карта уколов', '<div class="mapwrap"><div>' + faceSvg(v, locked) + '<p class="note" style="margin-top:6px">' + (locked ? 'Схема сохранена в карте.' : 'Нажмите на схему, чтобы отметить укол.') + '</p></div>' +
+      (ro ? '<span></span>' : '<button type="button" class="btn-ghost btn" data-act="pt-del" data-i="' + i + '" aria-label="Удалить укол ' + (i + 1) + '">×</button>') + '</div>').join('');
+    list.push(['map', 'Карта уколов', '<div class="mapwrap"><div>' + faceSvg(v, ro) + '<p class="note" style="margin-top:6px">' + (ro ? 'Схема сохранена в карте.' : 'Нажмите на схему, чтобы отметить укол.') + '</p></div>' +
       '<div class="stack"><div class="pts">' + (pts || '<p class="muted small">Уколов пока нет</p>') + '</div>' +
       '<div class="total">Всего: <span class="num" id="total-num">' + fmtNum(total(v)) + ' ' + esc(v.unit) + '</span></div></div></div>']);
   }
@@ -1848,7 +1946,7 @@ function renderVisit(v){
 
   let again = '';
   const last = lastSame(v);
-  if (!locked && last) again = v.copiedFrom
+  if (!ro && last) again = v.copiedFrom
     ? '<div class="again done">' + ICON_CHECK + '<div><b>Перенесено из визита ' + fmtLong(v.copiedFrom) + '</b><span class="small">Проверьте и поправьте, если нужно. Серию и срок годности — с новой упаковки.</span></div></div>'
     : '<div class="again"><div><b>Повторный пациент</b><span class="small">Прошлая процедура «' + esc(last.procName) + '»: ' + fmtLong(last.date) + (visitSummary(last) ? ', ' + visitSummary(last) : '') + '</span></div>' +
       '<button type="button" class="btn btn-primary" data-act="again">' + ICON_COPY + 'Как в прошлый раз</button></div>';
@@ -1858,7 +1956,7 @@ function renderVisit(v){
   const wasDone = (v.log || []).some(l => /Завершён/.test(l.what));
   const backTo = {today: 'Готово — к приёмам за сегодня', journal: 'Готово — к журналу приёмов', patients: 'Готово — к списку пациентов'}[S.ui.view] || 'Готово';
   const memoBtn = v.flags.memo && v.memo.trim();
-  const fresh = locked && v.date === todayIso();
+  const fresh = locked && v.date === todayIso() && !viewMode();
   const donePanel = !locked ? '' : '<div class="done-panel" role="status">' +
       '<div class="dp-head">' + ICON_CHECK + '<div><b>Приём завершён</b><span>' + fmtDT(v.doneAt) + (fixed.length ? ' · запись исправлялась' : '') + '. Запись сохранена в карте пациента и в «Журнале приёмов».</span></div></div>' +
       (fresh ? '<p class="dp-title">Что дальше</p><ol class="dp-steps">' +
@@ -1871,7 +1969,7 @@ function renderVisit(v){
       '<div class="row dp-foot"><button type="button" class="btn btn-primary" data-act="nav-tab" data-tab="' + (SECTIONS.some(x => x[0] === S.ui.view) ? S.ui.view : 'today') + '">' + backTo + '</button>' +
         '<button type="button" class="btn" data-act="open-patient" data-pid="' + p.id + '">Карта пациента</button>' +
         '<button type="button" class="btn btn-ghost" data-act="reopen">Исправить запись</button></div></div>';
-  const bottom = locked ? ''
+  const bottom = locked ? '' : viewMode() ? '<div class="finish"><div class="msg"><b>Приём не завершён</b><span class="muted">Врач ещё не закрыл этот визит в своей программе.</span></div></div>'
     : '<div class="finish" id="finish"><div class="msg">' + finishMsg(m) + '</div><div class="row">' +
       (wasDone ? '' : '<button type="button" class="btn btn-ghost btn-danger" data-act="del-visit">Удалить</button>') +
       '<button type="button" class="btn btn-primary" data-act="finish" id="finish-btn"' + (m.length ? ' disabled' : '') + '>Завершить визит</button></div></div>';
@@ -2153,6 +2251,7 @@ const STABS = [
   ['data', 'Копии и данные', 'Сохранить копию, восстановить данные из копии, удалить данные с компьютера']
 ];
 function renderSettings(){
+  if (viewMode()) return renderViewSettings();
   const cur = STABS.find(t => t[0] === S.ui.stab);
   if (!cur){
     return '<div class="page-head"><div><h1>Настройки</h1><p>Здесь настраивается всё, что программа спрашивает на приёме и печатает. Нажмите на раздел. Изменения сохраняются сами.</p></div></div>' +
@@ -2163,6 +2262,27 @@ function renderSettings(){
   return crumbs([['Настройки', 'data-act="stab" data-tab=""'], [cur[1]]]) +
     '<div class="page-head"><div><h1>' + cur[1] + '</h1><p>' + cur[2] + '. Изменения сохраняются сами, когда переходите к следующему полю.</p></div></div>' +
     '<div class="settings">' + nav + '<div class="stack">' + body + '</div></div>';
+}
+/* настройки компьютера администратора: новая копия, свой PIN, код, удаление данных */
+function renderViewSettings(){
+  const X = S.sec, vc = S.settings.viewCopy || {};
+  return '<div class="page-head"><div><h1>Настройки</h1><p>Компьютер администратора: режим просмотра. Карты здесь можно смотреть и печатать.</p></div></div><div class="stack">' +
+    '<section class="card stack"><h3>Данные из копии врача</h3>' +
+      '<p>' + (vc.createdAt ? 'Сейчас открыта копия от <b>' + fmtDT(vc.createdAt) + '</b>' + (vc.loadedAt ? ', открыта здесь ' + fmtDT(vc.loadedAt) : '') + '.' : 'Копия ещё не открыта.') + '</p>' +
+      howto('Чтобы увидеть новые приёмы, попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать файл. Откройте его здесь — данные на этом компьютере обновятся.') +
+      restoreForm('view') + '</section>' +
+    '<section class="card stack"><h3>Сменить PIN этого компьютера</h3>' + howto('PIN — 6–8 цифр, его вводят при каждом входе на этом компьютере.') + '<div class="sgrid">' +
+      field('Текущий PIN', pinIn('sp-cur')) + '<span></span>' +
+      field('Новый PIN, 6–8 цифр', pinIn('sp-new')) +
+      field('Новый PIN ещё раз', pinIn('sp-new2')) + '</div>' +
+      errBox(X.pinErr) + okBox(X.pinOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pin"' + (X.busy ? ' disabled' : '') + '>Сменить PIN</button></div></section>' +
+    '<section class="card stack"><h3>Активация</h3><div class="sgrid"><div class="kv"><span>Номер этого компьютера</span><b class="mono">' + devFmt(S.lic.device) + '</b></div>' +
+      '<div class="kv"><span>Код действует</span><b>' + (S.lic.until ? 'до ' + fmtDot(S.lic.until) + (S.lic.expired ? ' — срок закончился' : '') : 'без срока') + '</b></div></div>' +
+      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button></div></section>' +
+    '<section class="card stack danger-zone"><h3>Удалить все данные с этого компьютера</h3>' +
+      '<p class="small">Карты на ноутбуке врача это не затронет. Удаление нельзя отменить.</p>' +
+      field('Пароль клиники', secretIn('del-pw')) + errBox(S.sec.delErr) +
+      '<div class="row"><button type="button" class="btn btn-danger" data-act="wipe"' + (S.sec.busy ? ' disabled' : '') + '>Удалить все данные</button></div></section></div>';
 }
 const sText = (label, path, cls, ph) => field(label, '<input type="text" data-s="' + path + '" value="' + esc(getPath(S.settings, path)) + '" autocomplete="off"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '>', false, cls);
 const sNum = (label, path, min, max) => field(label, '<input type="number" data-s="' + path + '" data-min="' + min + '" data-max="' + max + '" min="' + min + '" max="' + max + '" value="' + esc(getPath(S.settings, path)) + '">');
@@ -2453,6 +2573,7 @@ async function onClick(e){
   if (!e.target.closest('.tpl') && !(e.target.dataset && e.target.dataset.tpl)) hideTpl();
   const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
   const act = el.dataset.act;
+  if (viewMode() && S.settings && VIEW_BLOCK.has(act)){ toast('Это компьютер администратора: здесь можно смотреть и печатать, а менять записи — только у врача.', 5000); return; }
   const v = curVisit();
   switch (act){
     case 'reload': location.reload(); break;
@@ -2505,7 +2626,7 @@ async function onClick(e){
       let ok = false;
       try { ok = await activate(code); } catch (err){ console.error(err); L.err = 'Не получилось сохранить код: ' + (err.message || err); }
       L.busy = false; render();
-      if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : 'Программа активирована на этом компьютере.', 5000);
+      if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : L.view ? 'Программа активирована: режим просмотра для администратора.' : 'Программа активирована на этом компьютере.', 5000);
       else { const ta = $('#act-code'); if (ta) ta.value = code; }
       return;
     }
@@ -2551,7 +2672,7 @@ async function onClick(e){
     case 'stab': S.ui.stab = el.dataset.tab; S.sec.pinErr = S.sec.pinOk = S.sec.pwErr = S.sec.pwOk = S.sec.delErr = ''; S.restore.err = ''; render(); return window.scrollTo(0, 0);
     case 'retry-save': flush(); return;
     case 'backup':
-      try { await makeBackup(false); } catch (err){ console.error(err); toast('Не удалось сохранить копию: ' + (err.message || err), 7000); }
+      try { await makeBackup(false, el.dataset.for === 'admin'); } catch (err){ console.error(err); toast('Не удалось сохранить копию: ' + (err.message || err), 7000); }
       return;
     case 'persist': await askPersist(); await checkStorage(); render(); toast(S.persist ? 'Браузер будет хранить данные постоянно.' : 'Браузер пока не согласился. Установите программу как приложение и попробуйте ещё раз.', 6000); return;
     case 'install': if (S.installEvt){ S.installEvt.prompt(); try { await S.installEvt.userChoice; } catch (err){} S.installEvt = null; render(); } return;
@@ -2701,6 +2822,7 @@ async function onClick(e){
 
 function onInput(e){
   const t = e.target;
+  if (viewMode() && S.settings && !viewInputOk(t)) return;
   if (t.dataset.sf){ S.setup[t.dataset.sf] = t.value; return; }
   const f = t.dataset.f; if (!f) return;
   if (f === 'q'){ S.ui.q = t.value; S.ui.plimit = 200; const box = document.getElementById('patient-list'); if (box) box.innerHTML = patientListHtml(); return; }
@@ -2726,6 +2848,7 @@ function onInput(e){
 
 async function onChange(e){
   const t = e.target;
+  if (viewMode() && S.settings && !viewInputOk(t)) return;
   if (t.dataset.rs === 'file'){ S.restore.file = t.files && t.files[0] || null; S.restore.err = ''; render(); return; }
   if (t.dataset.s){
     let val = t.type === 'checkbox' ? t.checked : t.value;
@@ -2772,7 +2895,7 @@ async function onChange(e){
 }
 
 const ENTER_ACT = {'su-name': 'su-next', 'su-doctor': 'su-next', 'su-pin': 'su-next', 'su-pin2': 'su-next', 'su-pw': 'su-finish', 'su-pw2': 'su-finish',
-  'lk-pin': 'unlock', 'fg-pw': 'lk-reset', 'fg-pin': 'lk-reset', 'fg-pin2': 'lk-reset', 'rs-pw': 'restore', 'sp-cur': 'change-pin', 'sp-new': 'change-pin', 'sp-new2': 'change-pin',
+  'lk-pin': 'unlock', 'fg-pw': 'lk-reset', 'fg-pin': 'lk-reset', 'fg-pin2': 'lk-reset', 'rs-pw': 'restore', 'rs-pin': 'restore', 'rs-pin2': 'restore', 'sp-cur': 'change-pin', 'sp-new': 'change-pin', 'sp-new2': 'change-pin',
   'sw-cur': 'change-pw', 'sw-new': 'change-pw', 'sw-new2': 'change-pw'};
 function onKey(e){
   if (e.key === 'Escape' && S.ui.modal){ closeModal(); return; }

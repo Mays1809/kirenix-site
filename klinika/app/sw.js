@@ -1,7 +1,7 @@
 /* Kirenix Клиника: работа без интернета.
    Страница — сначала из сети (чтобы сразу получать новую версию), без сети или при медленной сети — из кэша.
    Данные пациентов сюда не попадают: они лежат в IndexedDB браузера. */
-const CACHE = 'kx-klinika-1.4.1-bc8824c43c';
+const CACHE = 'kx-klinika-1.5-c4a37b1087';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './favicon.svg', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
