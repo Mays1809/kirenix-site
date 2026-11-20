@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-sOwg74IsZra9PeSQaSA6w4zsJV9ik4lMJws+3tQtdXQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-KkF4ynZBJKYFB61QpKzgPDaZNin7t1rw69ntMbt09yM='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -60,6 +60,14 @@ button{cursor:pointer}
 .save-state .dot{width:7px;height:7px}
 .save-state.ok{color:var(--ok)} .save-state.pending{color:var(--muted)} .save-state.err{color:var(--danger);font-weight:700}
 .who-am-i{font-size:13px;color:var(--muted);white-space:nowrap}
+/* 1.7: роль видна всегда; по нажатию — смена роли */
+.role-chip{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:4px 12px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-size:13px;line-height:1.2;cursor:pointer}
+.role-chip b{color:var(--accent-ink);font-weight:700}
+.role-chip .rc-name{color:var(--muted)}
+.role-chip:hover{border-color:var(--accent)}
+.role-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.role-line{font-size:14px;color:var(--muted)}
+.role-line b{color:var(--text)}
 
 main{padding-block:18px 40px}
 .foot{padding-block:0 24px;color:var(--muted);font-size:12px}
@@ -480,7 +488,7 @@ table.rep td:first-child{font-weight:600}
   .facemap{max-width:260px;justify-self:center}
   .finish{position:static}
   .kv{grid-template-columns:minmax(0,1fr)}
-  .who-am-i{display:none}
+  .role-chip .rc-name{display:none}
 }
 @media (prefers-reduced-motion:no-preference){
   .visit,.btn,.tpl button,.hist-item{transition:border-color .15s,background-color .15s,box-shadow .15s}
@@ -510,7 +518,7 @@ body.view-only [data-act="plan-new"],body.view-only [data-act="plan-add"],body.v
 body.view-only [data-act="cosm-add"],body.view-only [data-act="cosm-del"],body.view-only [data-act="pt-del"],body.view-only [data-act="backup"],body.view-only [data-act="doc-reset"]{display:none !important}
 body.view-only main input:disabled,body.view-only main textarea:disabled,body.view-only main select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text);cursor:default}
 body.view-only main input[type="checkbox"]:disabled{opacity:.85}
-body.view-only .who-am-i{color:var(--accent-ink);font-weight:600}
+body.view-only .role-chip{background:var(--accent-weak);border-color:transparent}
 /* 1.6: компьютер администратора — паспорт и документы на подпись */
 .pf-sub{margin-top:6px}
 .pf-sub h3{font-size:15px;margin:0}
@@ -535,7 +543,7 @@ body.view-only .who-am-i{color:var(--accent-ink);font-weight:600}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.6';
+const VERSION = '1.7';
 // открытый ключ Kirenix для проверки кодов активации (закрытый — только у Kiren на Mac); подставляет build.py
 const LICENSE_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDAaEw+t+T4hiv+ouo0REvGa/pMCTHAdhGr5JU7Z4UI9HD5XT7kiIHrXn3S/iQ6xLwpHDMJRQut+0q4E7UN/hFg==';
 const DB_NAME = 'kirenix-klinika';
@@ -783,7 +791,9 @@ const S = {
   sec: {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false},
   lic: {device: '', ok: false, code: '', until: '', at: 0, expired: false, soon: false, daysLeft: null, err: '', busy: false, mode: '', view: false},
   persist: null, usage: null, saveState: 'ok', installEvt: null,
-  admin: {exportAt: 0, docs: []}   // компьютер администратора: когда сохранён файл для врача, свои документы на подпись
+  admin: {exportAt: 0, docs: []},   // компьютер администратора: когда сохранён файл для врача, свои документы на подпись
+  // 1.7: роли на этом компьютере. main — роль основной базы, second — роль второй базы (если добавили по коду), cur — открытая сейчас
+  role: {main: '', second: '', cur: '', screen: false, err: '', busy: false}
 };
 const pat = id => S.patients.get(id);
 const vis = id => S.visits.get(id);
@@ -796,20 +806,22 @@ const procById = id => S.settings.procs.find(p => p.id === id);
 /* ---------- хранилище (IndexedDB) ---------- */
 const STORES = ['kv', 'patients', 'visits', 'plans'];
 const DB = {
-  db: null,
-  open(){
+  db: null, name: DB_NAME,
+  open(name){
+    name = name || DB.name;
     return new Promise((res, rej) => {
-      const r = indexedDB.open(DB_NAME, 1);
+      const r = indexedDB.open(name, 1);
       r.onupgradeneeded = () => {
         const db = r.result;
         if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', {keyPath: 'k'});
         ['patients', 'visits', 'plans'].forEach(n => { if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, {keyPath: 'id'}); });
       };
-      r.onsuccess = () => { DB.db = r.result; res(DB.db); };
+      r.onsuccess = () => { DB.db = r.result; DB.name = name; res(DB.db); };
       r.onerror = () => rej(r.error || new Error('indexedDB'));
       r.onblocked = () => rej(new Error('blocked'));
     });
   },
+  close(){ if (DB.db){ try { DB.db.close(); } catch (e){} DB.db = null; } },
   all(store){
     return new Promise((res, rej) => { const r = DB.db.transaction(store).objectStore(store).getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
   },
@@ -1002,6 +1014,7 @@ async function activate(code){
   if (!got){ L.err = 'Код не подходит. Скопируйте его из сообщения целиком.'; return false; }
   if (got.device !== L.device){ L.err = 'Этот код выдан для другого компьютера (номер в коде ' + devFmt(got.device) + '). Номер этого компьютера — ' + devFmt(L.device) + ': попросите код для него.'; return false; }
   if (got.until && got.until < todayIso()){ L.err = 'Срок этого кода закончился ' + fmtDot(got.until) + '. Попросите новый код.'; return false; }
+  if (L.ok && S.role.cur && (got.view ? 'admin' : 'doctor') !== S.role.cur) return 'other';   // код другой роли — это вход в неё, не замена
   const rec = {k: 'license', code: b32enc(b32dec(code)), device: L.device, until: got.until, at: Date.now()};
   await DB.write([{op: 'put', store: 'kv', value: rec}]);
   Object.assign(L, {ok: true, code: rec.code, until: got.until, at: rec.at, mode: '', view: !!got.view});
@@ -1012,7 +1025,124 @@ async function activate(code){
 function keepLicenseOps(){
   const L = S.lic, ops = [{op: 'put', store: 'kv', value: {k: 'device', id: L.device, createdAt: Date.now()}}];
   if (L.ok) ops.push({op: 'put', store: 'kv', value: {k: 'license', code: L.code, device: L.device, until: L.until, at: L.at}});
+  if (DB.name === DB_NAME && S.role.second) ops.push({op: 'put', store: 'kv', value: {k: 'roles', second: S.role.second, active: S.role.cur}});
   return ops;
+}
+
+/* 1.7: врач и администратор на одном компьютере. У каждой роли своя база в этом браузере (свои карты, настройки и PIN):
+   основная — kirenix-klinika, вторая — kirenix-klinika-admin или kirenix-klinika-doctor. Вторую роль добавляют кодом
+   активации с тем же номером компьютера; какая роль открыта последней, записано в основной базе. */
+const ROLE_NAME = {doctor: 'врач', admin: 'администратор'};
+const ROLE_GEN = {doctor: 'врача', admin: 'администратора'};
+const roleOfLic = () => S.lic.ok ? (S.lic.view ? 'admin' : 'doctor') : '';
+const roleDbName = role => role === S.role.main ? DB_NAME : DB_NAME + '-' + role;
+const otherRole = () => { const R = S.role; return R.cur === R.main ? R.second : R.main; };
+function rawPut(name, values){   // записать в другую базу этого браузера, не трогая открытую
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(name, 1);
+    r.onupgradeneeded = () => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', {keyPath: 'k'});
+      ['patients', 'visits', 'plans'].forEach(n => { if (!db.objectStoreNames.contains(n)) db.createObjectStore(n, {keyPath: 'id'}); });
+    };
+    r.onsuccess = () => {
+      const db = r.result, t = db.transaction('kv', 'readwrite');
+      values.forEach(v => t.objectStore('kv').put(v));
+      t.oncomplete = () => { db.close(); res(); };
+      t.onerror = () => { db.close(); rej(t.error || new Error('write')); };
+    };
+    r.onerror = () => rej(r.error || new Error('indexedDB'));
+  });
+}
+function resetAccount(){
+  forgetData(); S.settings = null; S.locked = true; S.admin = cleanAdmin(null);
+  S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
+  S.setup = {step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false};
+  S.restore = {file: null, err: '', busy: false, needPin: false};
+  S.sec = {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false};
+  S.ui = freshUi(); S.lic.mode = ''; S.lic.err = '';
+}
+/* при запуске: какая роль у основной базы, есть ли вторая и какая была открыта последней */
+async function pickAccount(){
+  const R = S.role;
+  R.main = roleOfLic(); R.cur = R.main;
+  const rec = await DB.get('kv', 'roles');
+  R.second = rec && (rec.second === 'admin' || rec.second === 'doctor') && rec.second !== R.main ? rec.second : '';
+  if (R.main && R.second && rec.active === R.second){
+    try { await openAccount(R.second); } catch (e){ console.warn('вторая роль не открылась', e); }
+  }
+}
+async function openAccount(role){
+  const R = S.role, dev = S.lic.device, name = roleDbName(role);
+  DB.close();
+  await DB.open(name);
+  if (name !== DB_NAME){
+    const d = await DB.get('kv', 'device');
+    if (!d || d.id !== dev) await DB.write([{op: 'put', store: 'kv', value: {k: 'device', id: dev, createdAt: Date.now()}}]);
+  }
+  await loadLicense();
+  if (roleOfLic() !== role){   // у второй базы нет кода этой роли — остаёмся на основной
+    DB.close(); await DB.open(DB_NAME); await loadLicense();
+    R.cur = R.main; resetAccount(); await loadSettings(); S.locked = !!S.settings; renderDatalists();
+    throw new Error('для роли «' + ROLE_NAME[role] + '» на этом компьютере нет кода');
+  }
+  R.cur = role;
+  resetAccount();
+  await loadSettings();
+  S.locked = !!S.settings;
+  renderDatalists();
+}
+async function markActive(role){ await rawPut(DB_NAME, [{k: 'roles', second: S.role.second, active: role}]); }
+async function switchRole(target){
+  const R = S.role;
+  if (R.busy || !target || target === R.cur) return;
+  R.busy = true; R.err = ''; render();
+  try {
+    if (S.settings && !S.locked) await lockNow();
+    await flush(); await saving.catch(() => {});
+    if (pending.size) throw new Error('не все изменения успели сохраниться, попробуйте ещё раз');
+    await openAccount(target);
+    await markActive(target);
+  } catch (err){
+    console.error(err); R.busy = false; R.screen = true;
+    R.err = 'Не получилось переключиться: ' + (err.message || err) + '.';
+    return render();
+  }
+  R.busy = false; R.screen = false;
+  render(); window.scrollTo(0, 0);
+  if (S.settings) toast('Вход: ' + ROLE_NAME[target] + '. Введите PIN ' + ROLE_GEN[target] + '.', 5000);
+}
+async function addRole(code){
+  const R = S.role;
+  if (R.busy) return;
+  code = String(code || '').trim(); R.err = '';
+  if (!code){ R.err = 'Вставьте код из сообщения.'; return render(); }
+  R.busy = true; render();
+  let role = '';
+  try {
+    let got = await readCode(code);
+    if (!got){ for (const t of code.match(/[0-9A-Za-z]{100,}/g) || []){ got = await readCode(t); if (got){ code = t; break; } } }
+    if (!got) throw new Error('Код не подходит. Скопируйте его из сообщения целиком.');
+    if (got.device !== S.lic.device) throw new Error('Этот код выдан для другого компьютера (номер в коде ' + devFmt(got.device) + '). Номер этого компьютера — ' + devFmt(S.lic.device) + ': попросите код для него.');
+    if (got.until && got.until < todayIso()) throw new Error('Срок этого кода закончился ' + fmtDot(got.until) + '. Попросите новый код.');
+    role = got.view ? 'admin' : 'doctor';
+    if (role === R.cur){   // код той же роли — просто продлить её
+      R.busy = false;
+      if (!(await activate(code))) throw new Error(S.lic.err || 'Код не подошёл.');
+      R.screen = false; render();
+      return toast('Это код для роли «' + ROLE_NAME[role] + '», вы и так в ней. Код обновлён: ' + (S.lic.until ? 'действует до ' + fmtDot(S.lic.until) : 'без срока') + '.', 7000);
+    }
+    const lic = {k: 'license', code: b32enc(b32dec(code)), device: S.lic.device, until: got.until, at: Date.now()};
+    const name = roleDbName(role);
+    await rawPut(name, name === DB_NAME ? [lic] : [{k: 'device', id: S.lic.device, createdAt: Date.now()}, lic]);
+    if (role !== R.main) R.second = role;
+  } catch (err){
+    R.busy = false; R.err = err.message || String(err);
+    render(); const ta = $('#role-code'); if (ta) ta.value = code;
+    return;
+  }
+  R.busy = false;
+  await switchRole(role);
 }
 function licBlocked(){
   if (!S.lic.expired) return false;
@@ -1025,7 +1155,7 @@ const viewMode = () => !!S.lic.view;
 const VIEW_BLOCK = new Set(['start-new', 'start-pick', 'start-proc', 'start-visit', 'map', 'pt-del', 'again', 'finish', 'reopen', 'del-visit',
   'tpl', 'plan-new', 'plan-add', 'plan-del', 'dir-add', 'dir-del', 'cosm-add', 'cosm-del', 'doc-reset', 'img-del', 'proc-add', 'proc-del', 'change-pw', 'backup']);
 const VIEW_F = new Set(['q', 'sq', 'dq', 'jq', 'jperiod', 'rperiod', 'jproc', 'docproc']);
-const VIEW_IDS = new Set(['rs-pw', 'rs-pin', 'rs-pin2', 'sp-cur', 'sp-new', 'sp-new2', 'del-pw', 'doc-ids-proc', 'doc-memo-proc']);
+const VIEW_IDS = new Set(['rs-pw', 'rs-pin', 'rs-pin2', 'sp-cur', 'sp-new', 'sp-new2', 'del-pw', 'doc-ids-proc', 'doc-memo-proc', 'role-code']);
 const viewInputOk = t => !!(t.dataset && (VIEW_F.has(t.dataset.f) || t.dataset.rs)) || VIEW_IDS.has(t.id) || !!(t.closest && t.closest('[data-admin-ok]'));
 function viewLock(root){ root.querySelectorAll('input, textarea, select').forEach(el => { if (!viewInputOk(el)) el.disabled = true; }); }
 /* копия от того же врача — тот же ключ данных: проверяем, расшифрует ли новый ключ то, что зашифровано текущим */
@@ -1479,11 +1609,12 @@ function render(){
   let html;
   if (S.fatal) html = renderFatal();
   else if (!S.lic.ok || (S.lic.mode === 'renew' && !S.locked)) html = renderActivate();
+  else if (S.role.screen) html = renderRole();
   else if (!S.settings) html = viewMode() ? renderViewSetup() : renderSetup();
   else if (S.locked) html = renderLock();
   else html = renderShell();
   app.innerHTML = html;
-  const ro = viewMode() && !!S.settings && !S.locked && !S.fatal && S.lic.ok && S.lic.mode !== 'renew';
+  const ro = viewMode() && !!S.settings && !S.locked && !S.fatal && S.lic.ok && S.lic.mode !== 'renew' && !S.role.screen;
   document.body.classList.toggle('view-only', ro);
   if (ro) viewLock(app);
   renderModal();
@@ -1523,13 +1654,46 @@ function renderActivate(){
     '</div></div>';
 }
 
+/* 1.7: кто вошёл и как перейти в другую роль на этом компьютере */
+function roleLine(){
+  const st = S.settings, admin = viewMode();
+  return '<p class="role-line">Вход: <b>' + (admin ? 'администратор' : 'врач') + '</b>' + (!admin && st && st.doctor.fio ? ', ' + esc(st.doctor.fio) : '') + '</p>';
+}
+function roleLink(back){
+  const o = otherRole();
+  return '<p><button type="button" class="linkish" data-act="' + (o ? 'role-go" data-role="' + o : 'role-open') + '">' +
+    (o ? (back ? 'Назад: войти как ' : 'Войти как ') + ROLE_NAME[o] : 'Другая роль на этом компьютере') + '</button></p>';
+}
+function renderRole(){
+  const R = S.role, st = S.settings, cur = R.cur, o = otherRole(), dis = R.busy ? ' disabled' : '';
+  const target = cur === 'admin' ? 'doctor' : 'admin';
+  const now = cur === 'admin' ? 'администратор' : 'врач' + (st && st.doctor.fio ? ', ' + esc(st.doctor.fio) : '');
+  let body = '<h2>Врач или администратор</h2><p>Сейчас на этом компьютере: <b>' + now + '</b>.</p>';
+  if (o){
+    body += '<p class="note">Данные врача и администратора на этом компьютере хранятся отдельно, у каждого свой PIN. Программа заблокируется и спросит PIN ' + ROLE_GEN[o] + '.</p>' +
+      errBox(R.err) +
+      '<button type="button" class="btn btn-primary wide" data-act="role-go" data-role="' + o + '"' + dis + '>' + (R.busy ? 'Переключаю…' : 'Войти как ' + ROLE_NAME[o]) + '</button>';
+  } else {
+    body += '<p class="small">Чтобы на этом же компьютере работал и ' + ROLE_NAME[target] + ', вставьте код активации для ' + ROLE_GEN[target] + '. Код выдаём по номеру этого компьютера.</p>' +
+      '<div class="devno"><span class="small muted">Номер этого компьютера</span><b class="mono" id="dev-no">' + devFmt(S.lic.device) + '</b>' +
+        '<button type="button" class="btn small" data-act="copy-dev">Скопировать</button></div>' +
+      field('Код для ' + ROLE_GEN[target], '<textarea id="role-code" rows="4" class="mono" spellcheck="false" autocomplete="off" placeholder="Вставьте код из сообщения" data-autofocus' + dis + '></textarea>', true) +
+      errBox(R.err) +
+      '<button type="button" class="btn btn-primary wide" data-act="role-add"' + dis + '>' + (R.busy ? 'Проверяю…' : 'Добавить и перейти') + '</button>' +
+      '<p class="note">Данные врача и администратора будут храниться отдельно, у каждого свой PIN. Переключаться — кнопкой с ролью вверху или на экране входа.</p>';
+  }
+  body += '<button type="button" class="btn wide" data-act="role-back"' + dis + '>Назад</button>';
+  return '<div class="gate"><div class="card stack">' + brandBox(st ? st.clinic.name : '') + body + '</div></div>';
+}
+
 /* компьютер администратора: вместо первой настройки — открыть копию врача */
 function renderViewSetup(){
   return '<div class="gate"><div class="card stack">' + brandBox('Компьютер администратора') + (IS_SAFARI ? SAFARI_WARN : '') +
     '<h2>Компьютер администратора</h2>' +
     '<p class="small">Здесь администратор заводит пациентов (ФИО, паспорт, адрес), печатает документы на подпись и смотрит карты, планы лечения и приёмы из копии, которую сохраняет программа врача. Записи о приёмах меняет только врач.</p>' +
     '<p class="note">Сначала откройте копию от врача: попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать вам файл kirenix-klinika-kopiya-….json. Откройте его здесь паролем клиники.</p>' +
-    restoreForm('view-first') + '</div></div>';
+    (otherRole() === 'doctor' ? '<p class="note">Врач на этом же компьютере: войдите как врач, нажмите «Копия для администратора» на экране «Сегодня» и вернитесь сюда — файл будет в папке «Загрузки».</p>' : '') +
+    restoreForm('view-first') + (otherRole() ? roleLink(true) : '') + '</div></div>';
 }
 /* первая настройка */
 function renderSetup(){
@@ -1558,7 +1722,7 @@ function renderSetup(){
       '<div class="row"><button type="button" class="btn" data-act="su-back"' + (s.busy ? ' disabled' : '') + '>Назад</button><button type="button" class="btn btn-primary" style="flex:1" data-act="su-finish"' + (s.busy ? ' disabled' : '') + '>' + (s.busy ? 'Настраиваю…' : 'Готово') + '</button></div>';
   }
   return '<div class="gate"><div class="card stack">' + brandBox('Настройка на этом компьютере') + dots + (IS_SAFARI ? SAFARI_WARN : '') + body +
-    '<p class="note">Данные пациентов хранятся зашифрованными только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p></div></div>';
+    '<p class="note">Данные пациентов хранятся зашифрованными только в этом браузере на этом компьютере и никуда не передаются. Не открывайте программу в режиме инкогнито — там всё стирается при закрытии окна.</p>' + (otherRole() ? roleLink(true) : '') + '</div></div>';
 }
 function restoreForm(where){
   const R = S.restore, view = where === 'view-first' || where === 'view';
@@ -1591,14 +1755,14 @@ function renderLock(){
       '<div class="banner bad" role="alert" style="margin:0"><span>PIN ввели неверно ' + L.fails + ' раз подряд. Чтобы никто не подобрал PIN, вход теперь только через пароль клиники.</span></div>' +
       '<p class="note">Пароль клиники знает руководитель. Нажмите кнопку ниже, введите пароль и придумайте новый PIN.</p>' +
       '<button type="button" class="btn btn-primary wide" data-act="lk-forgot">Войти с паролем клиники</button>' +
-      '<p class="note">' + (viewMode() ? 'Компьютер администратора' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>';
+      roleLine();
   } else {
     body = '<h2>Введите PIN</h2>' +
       '<div class="stack">' + pinIn('lk-pin', ' aria-label="PIN" data-autofocus' + dis) +
       errBox(L.err) +
       '<button type="button" class="btn btn-primary wide" data-act="unlock"' + dis + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></div>' +
-      '<p class="note">' + (viewMode() ? 'Компьютер администратора' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>' +
-      '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>';
+      roleLine() +
+      '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>' + roleLink(false);
   }
   return '<div class="gate"><div class="card stack">' + brandBox(st.clinic.name) + body + '</div></div>';
 }
@@ -1609,7 +1773,7 @@ function renderShell(){
   const st = S.settings, u = S.ui;
   const drafts = [...S.visits.values()].filter(v => v.status !== 'done').length;
   const head = '<header class="top"><div class="wrap"><div class="brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(st.clinic.name) + '</span></div></div>' +
-    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + (viewMode() ? 'Администратор' : esc(st.doctor.fio)) + '</span>' +
+    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><button type="button" class="who-am-i role-chip" data-act="role-open" title="Врач или администратор: сменить роль">' + (viewMode() ? '<b>Администратор</b>' : '<b>Врач</b><span class="rc-name">' + esc(shortName(st.doctor.fio)) + '</span>') + '</button>' +
     '<button type="button" class="btn small" data-act="nav-help" aria-pressed="' + (u.view === 'help') + '">Как работать</button>' +
     '<button type="button" class="btn small" data-act="nav-settings" aria-pressed="' + (u.view === 'settings') + '">Настройки</button>' +
     '<button type="button" class="btn small" data-act="lock">' + ICON_LOCK + 'Заблокировать</button></div></div>' +
@@ -1946,9 +2110,10 @@ function helpBody(){
       '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Администратору</h3><ul>' +
-      '<li>У администратора своя программа по отдельному коду. Первый раз он открывает копию от врача («Копия для администратора» на экране «Сегодня»). Копия зашифрована, открывается паролем клиники.</li>' +
-      '<li>Администратор заводит пациентов кнопкой ' + kb('+ Новый пациент') + ': ФИО, дата рождения, паспорт, адрес, анамнез. В карте пациента — «Документы на подпись», паспорт подставляется сам. Потом нажимает ' + kb('Файл для врача') + ' и отправляет файл врачу.</li>' +
-      '<li>Врач нажимает «Принять пациентов от администратора» и выбирает пациента из списка. Паспорт и адрес врачу не видны. Приёмы и планы меняет только врач, у администратора они обновляются со свежей копией.</li>' +
+      '<li>У администратора своя программа по отдельному коду. Первый раз он открывает копию от врача («Копия для администратора» на экране «Сегодня») паролем клиники.</li>' +
+      '<li>Он заводит пациентов кнопкой ' + kb('+ Новый пациент') + ' (ФИО, паспорт, адрес, анамнез), печатает «Документы на подпись» и отправляет врачу ' + kb('Файл для врача') + '.</li>' +
+      '<li>Врач нажимает «Принять пациентов от администратора». Паспорт и адрес ему не видны.</li>' +
+      '<li>Врач и администратор за одним компьютером: нажмите на роль вверху и вставьте код второй роли.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Чтобы карты не увидели чужие</h3><ul>' +
       '<li>Карты пациентов на компьютере зашифрованы: без PIN их не открыть, даже через настройки браузера. После 10 неверных PIN подряд вход — только с паролем клиники.</li>' +
@@ -2562,7 +2727,7 @@ function renderViewSettings(){
       errBox(X.pinErr) + okBox(X.pinOk) + '<div class="row"><button type="button" class="btn btn-primary" data-act="change-pin"' + (X.busy ? ' disabled' : '') + '>Сменить PIN</button></div></section>' +
     '<section class="card stack"><h3>Активация</h3><div class="sgrid"><div class="kv"><span>Номер этого компьютера</span><b class="mono">' + devFmt(S.lic.device) + '</b></div>' +
       '<div class="kv"><span>Код действует</span><b>' + (S.lic.until ? 'до ' + fmtDot(S.lic.until) + (S.lic.expired ? ' — срок закончился' : '') : 'без срока') + '</b></div></div>' +
-      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button></div></section>' +
+      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button><button type="button" class="btn" data-act="role-open">Врач или администратор</button></div></section>' +
     '<section class="card stack danger-zone"><h3>Удалить все данные с этого компьютера</h3>' +
       '<p class="small">Карты на ноутбуке врача это не затронет. Удаление нельзя отменить.</p>' +
       field('Пароль клиники', secretIn('del-pw')) + errBox(S.sec.delErr) +
@@ -2593,7 +2758,7 @@ function setClinic(){
     '<section class="card stack"><h3>Активация</h3>' + howto('Программа работает по коду активации: один код — один компьютер. Когда срок кода подходит к концу, попросите новый код и введите его здесь.') +
       '<div class="sgrid"><div class="kv"><span>Номер этого компьютера</span><b class="mono">' + devFmt(S.lic.device) + '</b></div>' +
       '<div class="kv"><span>Код действует</span><b>' + (S.lic.until ? 'до ' + fmtDot(S.lic.until) + (S.lic.expired ? ' — срок закончился' : '') : 'без срока') + '</b></div></div>' +
-      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button></div></section>';
+      '<div class="row"><button type="button" class="btn" data-act="lic-renew">Ввести новый код</button><button type="button" class="btn" data-act="role-open">Врач или администратор</button></div></section>';
 }
 function setProcs(){
   const units = ['ЕД', 'мл', 'мг', 'ед.', ''];
@@ -2913,7 +3078,10 @@ async function onClick(e){
       const was = L.ok;
       let ok = false;
       try { ok = await activate(code); } catch (err){ console.error(err); L.err = 'Не получилось сохранить код: ' + (err.message || err); }
-      L.busy = false; render();
+      L.busy = false;
+      if (ok === 'other'){ L.mode = ''; S.role.screen = true; render(); return addRole(code); }
+      if (ok && !was){ S.role.main = S.role.cur = roleOfLic(); }
+      render();
       if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : L.view ? 'Программа активирована: компьютер администратора.' : 'Программа активирована на этом компьютере.', 5000);
       else { const ta = $('#act-code'); if (ta) ta.value = code; }
       return;
@@ -2924,6 +3092,10 @@ async function onClick(e){
       return;
     }
     case 'lic-renew': S.lic.mode = 'renew'; S.lic.err = ''; render(); return window.scrollTo(0, 0);
+    case 'role-open': S.role.screen = true; S.role.err = ''; render(); return window.scrollTo(0, 0);
+    case 'role-back': S.role.screen = false; S.role.err = ''; return render();
+    case 'role-go': return switchRole(el.dataset.role);
+    case 'role-add': return addRole(($('#role-code') || {}).value || '');
     case 'lic-back': S.lic.mode = ''; S.lic.err = ''; return render();
     case 'lk-reset': {
       const L = S.lock, pw = ($('#fg-pw') || {}).value || '', a = ($('#fg-pin') || {}).value || '', b = ($('#fg-pin2') || {}).value || '';
@@ -3246,7 +3418,7 @@ async function boot(){
   if (framed){ S.fatal = 'frame'; return render(); }
   if (!window.indexedDB || !window.crypto || !crypto.subtle){ S.fatal = 'browser'; return render(); }
   if (!(await oneTab())){ S.fatal = 'tab'; return render(); }
-  try { await DB.open(); await loadLicense(); await loadSettings(); }
+  try { await DB.open(DB_NAME); await loadLicense(); await pickAccount(); await loadSettings(); }
   catch (e){ console.error(e); S.fatal = 'db'; S.fatalMsg = String(e && e.message || e); return render(); }
   S.locked = !!S.settings;
   renderDatalists();
