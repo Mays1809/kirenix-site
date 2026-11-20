@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-eKgb4moUBT9hrH/vnA7/16wtGhrRB9SUxxVbwcRcsko='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-sOwg74IsZra9PeSQaSA6w4zsJV9ik4lMJws+3tQtdXQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; font-src 'self' data:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex,nofollow">
 <meta name="color-scheme" content="light dark">
@@ -504,13 +504,19 @@ table.rep td:first-child{font-weight:600}
 }
 
 /* компьютер администратора: режим просмотра — кнопки правки скрыты, поля читаются как текст */
-body.view-only [data-act="start-new"],body.view-only [data-act="start-visit"],body.view-only [data-act="new-patient"],body.view-only [data-act="edit-patient"],
+body.view-only [data-act="start-new"],body.view-only [data-act="start-visit"],
 body.view-only [data-act="reopen"],body.view-only [data-act="del-visit"],body.view-only [data-act="finish"],body.view-only [data-act="again"],
 body.view-only [data-act="plan-new"],body.view-only [data-act="plan-add"],body.view-only [data-act="plan-del"],body.view-only [data-act="dir-add"],body.view-only [data-act="dir-del"],
 body.view-only [data-act="cosm-add"],body.view-only [data-act="cosm-del"],body.view-only [data-act="pt-del"],body.view-only [data-act="backup"],body.view-only [data-act="doc-reset"]{display:none !important}
 body.view-only main input:disabled,body.view-only main textarea:disabled,body.view-only main select:disabled{opacity:1;color:var(--text);-webkit-text-fill-color:var(--text);cursor:default}
 body.view-only main input[type="checkbox"]:disabled{opacity:.85}
 body.view-only .who-am-i{color:var(--accent-ink);font-weight:600}
+/* 1.6: компьютер администратора — паспорт и документы на подпись */
+.pf-sub{margin-top:6px}
+.pf-sub h3{font-size:15px;margin:0}
+.pf-sub .note{margin-top:2px}
+.adoc{padding-top:12px;border-top:1px solid var(--border)}
+.adoc:first-of-type{border-top:0;padding-top:0}
 </style>
 </head>
 <body>
@@ -529,7 +535,7 @@ body.view-only .who-am-i{color:var(--accent-ink);font-weight:600}
 'use strict';
 
 const APP = 'kirenix-klinika';
-const VERSION = '1.5';
+const VERSION = '1.6';
 // открытый ключ Kirenix для проверки кодов активации (закрытый — только у Kiren на Mac); подставляет build.py
 const LICENSE_PUB = 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEDAaEw+t+T4hiv+ouo0REvGa/pMCTHAdhGr5JU7Z4UI9HD5XT7kiIHrXn3S/iQ6xLwpHDMJRQut+0q4E7UN/hFg==';
 const DB_NAME = 'kirenix-klinika';
@@ -605,6 +611,78 @@ const IDS_TEXT = [
   'Я обязуюсь выполнять рекомендации специалиста после процедуры и сообщить в клинику, если почувствую ухудшение.',
   'Мне дана возможность задать вопросы, и я получил(а) на них ответы. Согласие даю в соответствии со статьёй 20 Федерального закона от 21.11.2011 № 323-ФЗ «Об основах охраны здоровья граждан в Российской Федерации».'
 ].join('\n');
+/* 1.6: ещё фразы для жалоб и осмотра; у клиники с прежними настройками они добавляются к её фразам один раз */
+const DIAG_V2 = [
+  'Жалобы на сухость и стянутость кожи.',
+  'Жалобы на жирный блеск и расширенные поры.',
+  'Жалобы на высыпания на лице.',
+  'Жалобы на покраснение кожи и сосудистую сетку.',
+  'Жалобы на пигментные пятна.',
+  'Жалобы на тёмные круги под глазами.',
+  'Жалобы на отёчность под глазами.',
+  'Жалобы на снижение чёткости овала лица.',
+  'Жалобы на морщины на шее и в зоне декольте.',
+  'Жалобы на кисетные морщины вокруг рта.',
+  'Жалобы на рубцы постакне.',
+  'Жалобы на повышенную потливость подмышечных впадин.',
+  'Жалобы на выпадение волос.',
+  'Жалобы на асимметрию губ.',
+  'Кожа комбинированная, поры расширены в Т-зоне.',
+  'Кожа жирная, поры расширены, открытые комедоны.',
+  'Единичные воспалительные элементы.',
+  'Постакне: застойные пятна и атрофические рубцы.',
+  'Сосудистая сетка в области крыльев носа и щёк.',
+  'Гиперпигментация в области лба и скул.',
+  'Тургор и эластичность кожи снижены.',
+  'Гравитационный птоз мягких тканей выражен умеренно.',
+  'Мимические морщины периорбитальной зоны выражены умеренно.',
+  'Кисетные морщины периоральной зоны.',
+  'Носогубные складки выражены значительно.',
+  'Кожа чистая, без воспалительных элементов.',
+  'Аллергологический анамнез не отягощён.',
+  'Беременность и лактацию отрицает.',
+  'Хронические заболевания отрицает.',
+  'Постоянно лекарственные препараты не принимает.',
+  'Процедура перенесена хорошо, осложнений нет.',
+  'Небольшой отёк и покраснение в местах введения.',
+  'Пациент проинформирован о возможных реакциях после процедуры.'
+];
+/* Диагнозы с кодами МКБ-10 для подсказки в поле «Диагноз». После « | » — слова для поиска, в карту они не попадают. */
+const DX_LIST = [
+  'L70.0 Угри обыкновенные | акне',
+  'L70.1 Угри шаровидные | акне',
+  'L70.8 Другие угри | акне',
+  'L70.9 Угри неуточненные | акне',
+  'L71.0 Периоральный дерматит',
+  'L71.1 Ринофима | розацеа',
+  'L71.8 Другой вид розацеа | розовые угри',
+  'L71.9 Розацеа неуточненного вида | розовые угри',
+  'L72.0 Эпидермальная киста | атерома',
+  'L72.1 Триходермальная киста | атерома',
+  'L73.0 Угри келоидные',
+  'L80 Витилиго',
+  'L81.0 Послевоспалительная гиперпигментация | пигментация пятна постакне',
+  'L81.1 Хлоазма | мелазма пигментация пятна',
+  'L81.2 Веснушки | пигментация',
+  'L81.4 Другая меланиновая гиперпигментация | лентиго пигментация пятна',
+  'L81.9 Нарушение пигментации неуточненное | пигментация пятна',
+  'L82 Себорейный кератоз',
+  'L85.3 Ксероз кожи | сухость кожи',
+  'L57.4 Старческая атрофия кожи | вялость возрастные изменения',
+  'L57.8 Другие изменения кожи, вызванные хроническим воздействием неионизирующего излучения | фотостарение',
+  'L90.5 Рубцовые состояния и фиброз кожи | рубцы постакне',
+  'L90.6 Атрофические полосы | стрии растяжки',
+  'L90.8 Другие атрофические изменения кожи',
+  'L91.0 Келоидный рубец | рубцы',
+  'L98.8 Другие уточненные болезни кожи и подкожной клетчатки',
+  'L21.0 Себорея головы',
+  'L21.9 Себорейный дерматит неуточненный',
+  'L30.9 Дерматит неуточненный',
+  'L65.9 Нерубцующаяся потеря волос неуточненная | выпадение волос алопеция',
+  'L68.0 Гирсутизм | избыточный рост волос',
+  'R23.4 Изменения структуры кожи',
+  'R61.0 Локализованный гипергидроз | потливость'
+];
 const proc = (id, name, drug, inject, unit, step, def, memo) => ({id, name, drug, inject, consent: drug, memoOn: !!memo, unit, step, def, drugName: '', memo: memo || '', risks: RISKS[id] || ''});
 const DEF = {
   clinic: {name: '', careTitle: 'Отдел заботы', phone: '', site: '', logo: '', qr: '', legal: ''},
@@ -643,7 +721,8 @@ const DEF = {
       'Противопоказаний к процедуре не выявлено.',
       'Результат прошлой процедуры сохраняется, осложнений не было.',
       'Динамика положительная, жалоб нет.'
-    ],
+    ].concat(DIAG_V2),
+    dx: DX_LIST.slice(),
     memo: [
       'В день процедуры не массировать и не трогать зоны введения.',
       'Первые сутки не спать лицом вниз.',
@@ -674,15 +753,20 @@ const DEF = {
     ]
   },
   req: {check: true, diag: true, batch: true, expiry: true, pd: true},
+  reg: {only: false},   // новых пациентов заводит администратор, врач выбирает из списка
   blank: {planRows: 18, dirRows: 6, cosmRows: 8},
   security: {lockMin: 10},
   backup: {auto: true, lastAt: null, lastDay: null}
 };
 function withDefaults(s){
   const out = Object.assign(clone(DEF), s || {});
-  ['clinic', 'doctor', 'docs', 'req', 'blank', 'security', 'backup', 'tpl', 'lists'].forEach(k => { out[k] = Object.assign(clone(DEF[k]), (s && s[k]) || {}); });
+  ['clinic', 'doctor', 'docs', 'req', 'blank', 'security', 'backup', 'tpl', 'lists', 'reg'].forEach(k => { out[k] = Object.assign(clone(DEF[k]), (s && s[k]) || {}); });
   if (!Array.isArray(out.procs) || !out.procs.length) out.procs = clone(DEF.procs);
   if (!Array.isArray(out.checks)) out.checks = clone(DEF.checks);
+  ['diag', 'memo', 'dx'].forEach(k => { if (!Array.isArray(out.tpl[k])) out.tpl[k] = clone(DEF.tpl[k]); });
+  // 1.6: новые фразы добавляются к фразам клиники один раз; удалённые потом не возвращаются
+  if (s && (+s.tplV || 0) < 2){ const have = new Set(out.tpl.diag.map(norm)); DIAG_V2.forEach(t => { if (!have.has(norm(t))) out.tpl.diag.push(t); }); }
+  out.tplV = 2;
   return out;
 }
 
@@ -698,7 +782,8 @@ const S = {
   restore: {file: null, err: '', busy: false, needPin: false},
   sec: {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false},
   lic: {device: '', ok: false, code: '', until: '', at: 0, expired: false, soon: false, daysLeft: null, err: '', busy: false, mode: '', view: false},
-  persist: null, usage: null, saveState: 'ok', installEvt: null
+  persist: null, usage: null, saveState: 'ok', installEvt: null,
+  admin: {exportAt: 0, docs: []}   // компьютер администратора: когда сохранён файл для врача, свои документы на подпись
 };
 const pat = id => S.patients.get(id);
 const vis = id => S.visits.get(id);
@@ -747,6 +832,7 @@ async function loadSettings(){
   const kv = await DB.get('kv', 'settings');
   S.settings = kv && kv.v ? withDefaults(kv.v) : null;
   const lk = await DB.get('kv', 'lock');
+  S.admin = cleanAdmin(await DB.get('kv', 'admin'));
   S.lock.fails = lk && +lk.fails > 0 ? +lk.fails : 0;
   S.lock.until = lk && +lk.until > 0 ? +lk.until : 0;
 }
@@ -791,6 +877,7 @@ function queue(store, value){
 }
 function queueDel(store, key){ pending.set(store + ':' + key, {op: 'del', store, key}); schedule(); }
 function saveSettings(){ queue('kv', {k: 'settings', v: S.settings}); }
+function saveAdmin(){ queue('kv', {k: 'admin', exportAt: S.admin.exportAt, docs: S.admin.docs}); }
 function schedule(){ setSaveState('pending'); clearTimeout(saveTimer); saveTimer = setTimeout(flush, 400); }
 function flush(){
   clearTimeout(saveTimer);
@@ -932,13 +1019,14 @@ function licBlocked(){
   toast('Срок кода активации закончился ' + fmtDot(S.lic.until) + '. Новые приёмы — после нового кода; карты можно смотреть и печатать.', 7000);
   return true;
 }
-/* режим просмотра для администратора (код с отметкой «просмотр»): карты из копии врача можно смотреть и печатать, но не менять */
+/* компьютер администратора (код с отметкой «администратор»): приёмы и планы из копии врача — только смотреть и печатать;
+   с 1.6 администратор сам заводит пациентов (ФИО, паспорт, адрес), печатает документы на подпись и отправляет врачу файл с пациентами */
 const viewMode = () => !!S.lic.view;
-const VIEW_BLOCK = new Set(['start-new', 'start-pick', 'start-proc', 'start-visit', 'new-patient', 'edit-patient', 'pf-save', 'pf-delete', 'map', 'pt-del', 'again', 'finish', 'reopen', 'del-visit',
+const VIEW_BLOCK = new Set(['start-new', 'start-pick', 'start-proc', 'start-visit', 'map', 'pt-del', 'again', 'finish', 'reopen', 'del-visit',
   'tpl', 'plan-new', 'plan-add', 'plan-del', 'dir-add', 'dir-del', 'cosm-add', 'cosm-del', 'doc-reset', 'img-del', 'proc-add', 'proc-del', 'change-pw', 'backup']);
 const VIEW_F = new Set(['q', 'sq', 'dq', 'jq', 'jperiod', 'rperiod', 'jproc', 'docproc']);
 const VIEW_IDS = new Set(['rs-pw', 'rs-pin', 'rs-pin2', 'sp-cur', 'sp-new', 'sp-new2', 'del-pw', 'doc-ids-proc', 'doc-memo-proc']);
-const viewInputOk = t => !!(t.dataset && (VIEW_F.has(t.dataset.f) || t.dataset.rs)) || VIEW_IDS.has(t.id);
+const viewInputOk = t => !!(t.dataset && (VIEW_F.has(t.dataset.f) || t.dataset.rs)) || VIEW_IDS.has(t.id) || !!(t.closest && t.closest('[data-admin-ok]'));
 function viewLock(root){ root.querySelectorAll('input, textarea, select').forEach(el => { if (!viewInputOk(el)) el.disabled = true; }); }
 /* копия от того же врача — тот же ключ данных: проверяем, расшифрует ли новый ключ то, что зашифровано текущим */
 async function sameDk(priv, box){
@@ -1116,7 +1204,9 @@ function sanitizeData(d){
   const sec = st.security, isWrap = w => !!w && ['salt', 'iv', 'data'].every(k => typeof w[k] === 'string'), isBox = b => !!b && !!b.epk && typeof b.iv === 'string' && typeof b.data === 'string';
   if (!isWrap(sec.wrap) || !sec.pub || !((isWrap(sec.dkPin) && isBox(sec.dkBox)) || (typeof sec.pinHash === 'string' && typeof sec.pinSalt === 'string'))) throw userErr('В копии нет ключей программы.');
   const patients = d.patients.filter(p => p && ID_RE.test(p.id)).map(p => Object.assign(p, {
-    last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж', pdConsentAt: validIso(p.pdConsentAt) ? p.pdConsentAt : ''}));
+    last: str(p.last), first: str(p.first), middle: str(p.middle), birth: validIso(p.birth) ? p.birth : '', card: str(p.card), sex: p.sex === 'м' ? 'м' : 'ж', pdConsentAt: validIso(p.pdConsentAt) ? p.pdConsentAt : '',
+    byAdmin: !!p.byAdmin, adminNew: !!p.adminNew, adminAt: num(p.adminAt), passBox: isBox(p.passBox) ? {epk: p.passBox.epk, iv: p.passBox.iv, data: p.passBox.data} : undefined,
+    pass: p.pass && typeof p.pass === 'object' ? cleanPass(p.pass) : undefined}));
   const pids = new Set(patients.map(p => p.id));
   const visits = d.visits.filter(v => v && ID_RE.test(v.id) && pids.has(v.pid) && validIso(v.date)).map(v => Object.assign(v, {
     time: /^\d{2}:\d{2}$/.test(v.time) ? v.time : '00:00', kind: v.kind === 'повторный' ? 'повторный' : 'первичный', status: v.status === 'done' ? 'done' : 'draft',
@@ -1149,6 +1239,7 @@ async function replaceAll(data, priv, opt){
   }
   if (opt.view) data.settings.viewCopy = {createdAt: data.createdAt, loadedAt: new Date().toISOString(), patients: data.patients.length, visits: data.visits.length};
   const ops = STORES.map(s => ({op: 'clear', store: s})).concat(keepLicenseOps());
+  if (opt.view) ops.push({op: 'put', store: 'kv', value: {k: 'admin', exportAt: S.admin.exportAt, docs: S.admin.docs}});
   ops.push({op: 'put', store: 'kv', value: {k: 'settings', v: data.settings}});
   for (const st of REC_STORES) for (const x of data[st]) ops.push({op: 'put', store: st, value: key ? await encRec(key, st, x) : x});
   pending.clear();
@@ -1172,6 +1263,7 @@ async function doRestore(where){
       (has ? '\n\nВсе данные на этом компьютере заменятся данными из копии. Перед этим программа сохранит копию текущих данных в «Загрузки».' : ''));
     if (!ok){ R.busy = false; return render(); }
     if (has && S.settings && S.dk) await makeBackup(false);
+    data.patients.forEach(x => { delete x.pass; delete x.adminNew; });   // у врача паспортов в открытом виде нет и быть не должно
     await replaceAll(data, got.priv);
     S.restore = {file: null, err: '', busy: false};
     S.setup = freshSetup();
@@ -1202,7 +1294,8 @@ async function viewRestore(R, pw){
       keepPin = S.settings.security.dkPin;
     }
     if (!confirm('Открыть копию от ' + fmtDT(data.createdAt) + '?\n\nВ копии пациентов: ' + data.patients.length + ', визитов: ' + data.visits.length + '.' +
-      (S.settings ? '\n\nДанные на этом компьютере заменятся данными из копии.' : ''))){ R.busy = false; return render(); }
+      (S.settings ? '\n\nПриёмы и карты на этом компьютере обновятся из копии. Пациенты, которых вы завели, и их паспортные данные сохранятся.' : ''))){ R.busy = false; return render(); }
+    await mergeAdminData(data, got.priv);
     const key = await replaceAll(data, got.priv, {pin, keepPin, view: true});
     S.restore = {file: null, err: '', busy: false, needPin: false};
     S.setup = freshSetup(); S.ui = freshUi();
@@ -1211,6 +1304,154 @@ async function viewRestore(R, pw){
   } catch (e){
     if (!e.user) console.error(e); R.busy = false; R.err = e.message || 'Не удалось открыть копию.'; render();
   }
+}
+/* копия врача приходит с паспортами, зашифрованными ключом клиники: здесь есть пароль клиники — расшифровываем;
+   пациенты, которых врач ещё не принял, и правки администратора новее копии остаются */
+async function mergeAdminData(data, priv){
+  const mine = new Map([...S.patients.values()].filter(x => x.adminAt).map(x => [x.id, x]));
+  const seen = new Set();
+  for (const dp of data.patients){
+    const lp = mine.get(dp.id);
+    if (lp){
+      seen.add(dp.id);
+      if ((lp.adminAt || 0) > (num(dp.adminAt) || 0)){ ['last', 'first', 'middle', 'birth', 'sex', 'card'].forEach(k => { dp[k] = lp[k]; }); dp.adminAt = lp.adminAt; dp.byAdmin = true; }
+      if (lp.pass) dp.pass = lp.pass;
+      if (lp.pdConsentAt && !dp.pdConsentAt) dp.pdConsentAt = lp.pdConsentAt;
+    }
+    if (!dp.pass && dp.passBox){
+      try { dp.pass = cleanPass(JSON.parse(dec.decode(await openSealed(priv, dp.passBox)))); } catch (e){ console.warn('паспорт не расшифровался', dp.id); }
+    }
+    dp.adminNew = false;
+  }
+  mine.forEach((lp, id) => { if (!seen.has(id)) data.patients.push(Object.assign({}, lp, {adminNew: true})); });
+}
+function cleanPass(o){
+  o = o && typeof o === 'object' ? o : {};
+  return {ser: clean(str(o.ser)).slice(0, 10), num: clean(str(o.num)).slice(0, 12), date: validIso(o.date) ? o.date : '', by: clean(str(o.by)).slice(0, 300), code: clean(str(o.code)).slice(0, 10), addr: clean(str(o.addr)).slice(0, 400)};
+}
+const hasPass = ps => !!ps && ['ser', 'num', 'date', 'by', 'code', 'addr'].some(k => ps[k]);
+function cleanAdmin(a){
+  a = a && typeof a === 'object' ? a : {};
+  const docs = (Array.isArray(a.docs) ? a.docs : []).filter(d => d && ID_RE.test(d.id)).slice(0, 30).map(d => ({id: d.id, title: clean(str(d.title)).slice(0, 200) || 'Документ', text: str(d.text).slice(0, 30000)}));
+  return {exportAt: num(a.exportAt), docs};
+}
+
+/* файл «Пациенты для врача»: ФИО, дата рождения, № карты; у новых — анамнез. Паспорт и адрес — внутри, зашифрованы ключом клиники:
+   программа врача их не открывает, а копия врача вернёт их администратору. Сам файл зашифрован ключом данных этой клиники. */
+const REG_AAD = enc.encode('kirenix-klinika:patients:1');
+const regPending = () => [...S.patients.values()].filter(x => x.adminAt && x.adminAt > (S.admin.exportAt || 0)).length;
+async function regExport(){
+  if (!S.dk) throw new Error('программа заблокирована');
+  await flush();
+  const list = [...S.patients.values()].filter(x => x.adminAt);
+  if (!list.length){ toast('Пока нет пациентов, которых завёл администратор. Нажмите «+ Новый пациент».', 6000); return; }
+  const pub = S.settings.security.pub, items = [];
+  for (const x of list){
+    const it = {id: x.id, last: x.last, first: x.first, middle: x.middle || '', birth: x.birth, sex: x.sex, card: x.card || '', adminAt: x.adminAt, pdConsentAt: x.pdConsentAt || ''};
+    if (x.adminNew) Object.assign(it, {wasBefore: !!x.wasBefore, allergy: x.allergy || '', chronic: x.chronic || '', meds: x.meds || '', note: x.note || ''});
+    if (hasPass(x.pass)) it.passBox = await sealFor(pub, enc.encode(JSON.stringify(x.pass)));
+    else if (x.passBox) it.passBox = x.passBox;
+    items.push(it);
+  }
+  const createdAt = new Date().toISOString(), iv = rnd(12);
+  const ct = await crypto.subtle.encrypt({name: 'AES-GCM', iv, additionalData: REG_AAD}, S.dk, enc.encode(JSON.stringify({app: APP, kind: 'patients', createdAt, items})));
+  const file = {app: APP, kind: 'patients', v: 1, createdAt, clinic: S.settings.clinic.name, count: items.length,
+    note: 'Пациенты от администратора для программы врача Kirenix Клиника. Файл зашифрован: открывается только в программе врача этой клиники.', iv: b64(iv), ct: b64(ct)};
+  const name = 'kirenix-klinika-pacienty-' + todayIso() + '-' + nowHM().replace(':', '') + pad(new Date().getSeconds()) + '.json';
+  download(name, JSON.stringify(file));
+  S.admin.exportAt = Date.now(); saveAdmin(); flush();
+  toast('Файл для врача сохранён в «Загрузки»: ' + name + '. Отправьте его врачу.', 9000);
+  render();
+}
+function cleanRegItem(r){
+  if (!r || !ID_RE.test(r.id)) return null;
+  const last = cap(clean(str(r.last))), first = cap(clean(str(r.first)));
+  if (!last || !first || !validIso(r.birth)) return null;
+  const b = r.passBox, box = b && b.epk && typeof b.epk === 'object' && typeof b.iv === 'string' && typeof b.data === 'string' ? {epk: b.epk, iv: b.iv, data: b.data} : null;
+  return {id: r.id, last, first, middle: cap(clean(str(r.middle))), birth: r.birth, sex: r.sex === 'м' ? 'м' : 'ж', card: clean(str(r.card)), adminAt: num(r.adminAt), pdConsentAt: validIso(r.pdConsentAt) ? r.pdConsentAt : '',
+    wasBefore: !!r.wasBefore, allergy: str(r.allergy).trim(), chronic: str(r.chronic).trim(), meds: str(r.meds).trim(), note: str(r.note).trim(), passBox: box};
+}
+/* программа врача: принять файл от администратора */
+async function regImport(file){
+  if (!S.dk) return;
+  if (file.size > MAX_BACKUP) return toast('Файл слишком большой — это не файл от администратора.', 7000);
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch (e){ return toast('Файл повреждён или это не файл от администратора.', 7000); }
+  if (!obj || obj.app !== APP) return toast('Это не файл Kirenix Клиники.', 7000);
+  if (obj.kind === 'backup') return toast('Это копия данных, а не пациенты от администратора. Нужен файл kirenix-klinika-pacienty-….json.', 9000);
+  if (obj.kind !== 'patients' || typeof obj.iv !== 'string' || typeof obj.ct !== 'string') return toast('Это не файл с пациентами от администратора.', 7000);
+  let data;
+  try { data = JSON.parse(dec.decode(await crypto.subtle.decrypt({name: 'AES-GCM', iv: unb64(obj.iv), additionalData: REG_AAD}, S.dk, unb64(obj.ct)))); }
+  catch (e){ return toast('Файл не подходит к этой программе: его сохранили для программы другого врача. Администратору нужно открыть свежую копию от этого врача и сохранить файл заново.', 12000); }
+  if (!data || data.app !== APP || data.kind !== 'patients' || !Array.isArray(data.items)) return toast('В файле нет списка пациентов.', 7000);
+  let added = 0, updated = 0;
+  data.items.forEach(raw => {
+    const it = cleanRegItem(raw); if (!it) return;
+    const x = pat(it.id);
+    if (!x){
+      const np = {id: it.id, createdAt: Date.now(), last: it.last, first: it.first, middle: it.middle, birth: it.birth, sex: it.sex, card: it.card, wasBefore: it.wasBefore,
+        allergy: it.allergy, chronic: it.chronic, meds: it.meds, note: it.note, byAdmin: true, adminAt: it.adminAt, pdConsentAt: it.pdConsentAt};
+      if (it.passBox) np.passBox = it.passBox;
+      S.patients.set(np.id, np); queue('patients', np); added++;
+    } else if ((it.adminAt || 0) > (x.adminAt || 0)){
+      Object.assign(x, {last: it.last, first: it.first, middle: it.middle, birth: it.birth, sex: it.sex, card: it.card, byAdmin: true, adminAt: it.adminAt});
+      if (it.passBox) x.passBox = it.passBox;
+      if (it.pdConsentAt && !x.pdConsentAt) x.pdConsentAt = it.pdConsentAt;
+      queue('patients', x); updated++;
+    }
+  });
+  await flush();
+  render();
+  toast('Пациенты от администратора приняты: новых ' + added + ', обновлено ' + updated + '.', 7000);
+}
+const regImportBtn = (label) => '<span class="btn file">' + (label || 'Принять пациентов от администратора') + '<input type="file" id="reg-file" accept=".json,application/json"></span>';
+
+/* свои документы клиники на компьютере администратора: договор, анкета, отказы; данные пациента подставляются вместо {слов} */
+async function importAdminDocs(file){
+  if (file.size > 2 * 1048576) return toast('Файл слишком большой.', 6000);
+  let obj;
+  try { obj = JSON.parse(await file.text()); } catch (e){ return toast('Файл повреждён или это не файл документов.', 7000); }
+  const list = obj && obj.app === APP && obj.kind === 'docs' && Array.isArray(obj.docs) ? obj.docs : null;
+  if (!list) return toast('Это не файл документов Kirenix Клиники.', 7000);
+  let n = 0;
+  list.slice(0, 30).forEach(d => {
+    const title = clean(str(d && d.title)).slice(0, 200), text = str(d && d.text).slice(0, 30000);
+    if (!title || !text.trim()) return;
+    const same = S.admin.docs.find(x => norm(x.title) === norm(title));
+    if (same) same.text = text; else S.admin.docs.push({id: uid(), title, text});
+    n++;
+  });
+  S.admin.docs = S.admin.docs.slice(0, 30);
+  saveAdmin(); render();
+  toast(n ? 'Загружено документов: ' + n + '.' : 'В файле нет документов.', 6000);
+}
+function customPaper(d, p){
+  const ps = p && hasPass(p.pass) ? p.pass : null;
+  const passTxt = ps && (ps.ser || ps.num) ? ['серия ' + (ps.ser || '—') + ' № ' + (ps.num || '—'), ps.by ? 'выдан ' + ps.by : '', ps.date ? 'дата выдачи ' + fmtDot(ps.date) : '', ps.code ? 'код подразделения ' + ps.code : ''].filter(Boolean).join(', ') : '';
+  const val = {'фио': p ? fio(p) : '', 'дата рождения': p && p.birth ? fmtDot(p.birth) : '', 'паспорт': passTxt, 'адрес': ps ? ps.addr : '', 'дата': p ? fmtDot(todayIso()) : '',
+    'клиника': clean(S.settings.clinic.legal) || S.settings.clinic.name, 'специалист': S.settings.doctor.fio};
+  const sub = t => {
+    let out = '', last = 0;
+    t.replace(/\{([^{}]{1,30})\}/g, (m, k, at) => {
+      out += esc(t.slice(last, at)); last = at + m.length;
+      const key = norm(k);
+      out += !(key in val) ? esc(m) : val[key] ? '<b>' + esc(val[key]) + '</b>' : fillLine(key === 'паспорт' || key === 'адрес' ? 110 : key === 'фио' ? 80 : 30);
+      return m;
+    });
+    return out + esc(t.slice(last));
+  };
+  return '<div class="paper doc">' + paperTop('') + '<h4 class="doc-title">' + esc(d.title) + '</h4>' + lines(d.text).map(l => '<p>' + sub(l) + '</p>').join('') +
+    '<div class="sign"><span>Дата: ' + (p ? fmtDot(todayIso()) : fillLine(26)) + '</span><span>Подпись: ____________ / ' + (p ? esc(shortName(fio(p))) : fillLine(36)) + '</span></div></div>';
+}
+function adminDocsSection(){
+  const docs = S.admin.docs;
+  return '<section class="card stack" data-admin-ok><h3>Документы на подпись</h3>' +
+    howto('Свои документы клиники: договор, анкета здоровья, отказы. Вставьте текст — при печати программа подставит данные пациента вместо слов в фигурных скобках: {ФИО}, {дата рождения}, {паспорт}, {адрес}, {дата}, {клиника}. Каждый абзац — с новой строки. Согласие на обработку данных и согласие на процедуру уже есть, их добавлять не нужно.') +
+    (docs.length ? docs.map((d, i) => '<div class="adoc stack">' + field('Название', '<input type="text" data-ad="title" data-i="' + i + '" value="' + esc(d.title) + '" autocomplete="off">') +
+      field('Текст', '<textarea data-ad="text" data-i="' + i + '" rows="8">' + esc(d.text) + '</textarea>') +
+      '<div class="row"><button type="button" class="btn small" data-act="ad-view" data-i="' + i + '">' + ICON_PRINT + 'Посмотреть бланк</button><button type="button" class="btn btn-ghost btn-danger small" data-act="ad-del" data-i="' + i + '">Удалить</button></div></div>').join('')
+      : '<p class="note">Пока нет. Нажмите «Добавить документ» или загрузите файл с документами, который пришлёт Kirenix.</p>') +
+    '<div class="row"><button type="button" class="btn" data-act="ad-add">+ Добавить документ</button><span class="btn file">Загрузить из файла<input type="file" id="ad-file" accept=".json,application/json"></span></div></section>';
 }
 const freshSetup = () => ({step: 1, name: '', doctor: '', pin: '', pin2: '', pw: '', pw2: '', err: '', busy: false, restore: false});
 const freshUi = () => ({view: 'today', pid: null, vid: null, edit: null, start: null, from: '', ptab: 'card', q: '', sq: '', jq: '', jproc: '', jperiod: '', plimit: 200, jlimit: 60, dq: '', batch: null, rperiod: 'month', modal: null, stab: '', openProc: null, formErr: ''});
@@ -1285,9 +1526,9 @@ function renderActivate(){
 /* компьютер администратора: вместо первой настройки — открыть копию врача */
 function renderViewSetup(){
   return '<div class="gate"><div class="card stack">' + brandBox('Компьютер администратора') + (IS_SAFARI ? SAFARI_WARN : '') +
-    '<h2>Режим просмотра</h2>' +
-    '<p class="small">Здесь администратор смотрит карты пациентов, планы лечения, приёмы и препараты из копии, которую сохраняет программа врача. Распечатать можно, менять записи на этом компьютере нельзя.</p>' +
-    '<p class="note">Попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать вам файл kirenix-klinika-kopiya-….json. Откройте его здесь паролем клиники.</p>' +
+    '<h2>Компьютер администратора</h2>' +
+    '<p class="small">Здесь администратор заводит пациентов (ФИО, паспорт, адрес), печатает документы на подпись и смотрит карты, планы лечения и приёмы из копии, которую сохраняет программа врача. Записи о приёмах меняет только врач.</p>' +
+    '<p class="note">Сначала откройте копию от врача: попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать вам файл kirenix-klinika-kopiya-….json. Откройте его здесь паролем клиники.</p>' +
     restoreForm('view-first') + '</div></div>';
 }
 /* первая настройка */
@@ -1350,13 +1591,13 @@ function renderLock(){
       '<div class="banner bad" role="alert" style="margin:0"><span>PIN ввели неверно ' + L.fails + ' раз подряд. Чтобы никто не подобрал PIN, вход теперь только через пароль клиники.</span></div>' +
       '<p class="note">Пароль клиники знает руководитель. Нажмите кнопку ниже, введите пароль и придумайте новый PIN.</p>' +
       '<button type="button" class="btn btn-primary wide" data-act="lk-forgot">Войти с паролем клиники</button>' +
-      '<p class="note">' + (viewMode() ? 'Компьютер администратора: режим просмотра' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>';
+      '<p class="note">' + (viewMode() ? 'Компьютер администратора' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>';
   } else {
     body = '<h2>Введите PIN</h2>' +
       '<div class="stack">' + pinIn('lk-pin', ' aria-label="PIN" data-autofocus' + dis) +
       errBox(L.err) +
       '<button type="button" class="btn btn-primary wide" data-act="unlock"' + dis + '>' + (L.busy ? 'Проверяю…' : 'Войти') + '</button></div>' +
-      '<p class="note">' + (viewMode() ? 'Компьютер администратора: режим просмотра' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>' +
+      '<p class="note">' + (viewMode() ? 'Компьютер администратора' : 'Специалист: ' + esc(st.doctor.fio)) + '</p>' +
       '<p><button type="button" class="linkish" data-act="lk-forgot">Забыли PIN?</button></p>';
   }
   return '<div class="gate"><div class="card stack">' + brandBox(st.clinic.name) + body + '</div></div>';
@@ -1368,7 +1609,7 @@ function renderShell(){
   const st = S.settings, u = S.ui;
   const drafts = [...S.visits.values()].filter(v => v.status !== 'done').length;
   const head = '<header class="top"><div class="wrap"><div class="brand"><div class="logo" aria-hidden="true">K</div><div><b>Kirenix Клиника</b><span class="small muted">' + esc(st.clinic.name) + '</span></div></div>' +
-    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + (viewMode() ? 'Просмотр для администратора' : esc(st.doctor.fio)) + '</span>' +
+    '<div class="top-actions"><span class="save-state" id="save-state" aria-live="polite"></span><span class="who-am-i">' + (viewMode() ? 'Администратор' : esc(st.doctor.fio)) + '</span>' +
     '<button type="button" class="btn small" data-act="nav-help" aria-pressed="' + (u.view === 'help') + '">Как работать</button>' +
     '<button type="button" class="btn small" data-act="nav-settings" aria-pressed="' + (u.view === 'settings') + '">Настройки</button>' +
     '<button type="button" class="btn small" data-act="lock">' + ICON_LOCK + 'Заблокировать</button></div></div>' +
@@ -1426,7 +1667,13 @@ function renderToday(){
   // врач сохраняет копию и отправляет файл администратору — у того режим просмотра
   const forAdmin = view || !S.patients.size ? '' : '<section class="day-sec admin-copy"><h2>Копия для администратора</h2><p class="note">Чтобы администратор увидел приёмы у себя, сохраните копию и отправьте ему файл из папки «Загрузки». Файл зашифрован: открыть его можно только в программе и только паролем клиники.</p>' +
     '<div class="row"><button type="button" class="btn" data-act="backup" data-for="admin">Копия для администратора</button></div></section>';
-  let out = '<div class="page-head"><div><h1>Сегодня</h1><p>' + esc(cap(day)) + '</p></div>' + (view ? '' : '<button type="button" class="btn btn-primary btn-lg" data-act="start-new">+ Начать приём</button>') + '</div>';
+  let out = '<div class="page-head"><div><h1>Сегодня</h1><p>' + esc(cap(day)) + '</p></div>' + (view ? '<button type="button" class="btn btn-primary btn-lg" data-act="new-patient">+ Новый пациент</button>' : '<button type="button" class="btn btn-primary btn-lg" data-act="start-new">+ Начать приём</button>') + '</div>';
+  if (view){
+    const pend = regPending();
+    out += '<section class="day-sec reg-sec"><h2>Пациенты для врача</h2><p class="note">' + (pend ? 'Новые и изменённые пациенты, которых ещё нет в файле для врача: <b>' + pend + '</b>. ' : 'Все пациенты, которых вы завели, уже в файле для врача. ') +
+      'Сохраните файл и отправьте его врачу: в своей программе он нажмёт «Принять пациентов от администратора» и выберет пациента из списка. Паспорт и адрес врачу не видны.</p>' +
+      '<div class="row"><button type="button" class="btn' + (pend ? ' btn-primary' : '') + '" data-act="reg-export">Файл для врача</button></div></section>';
+  }
   if (!going.length && !old.length && !done.length){
     if (view) return out + '<div class="card empty-state"><h2>Сегодня приёмов в копии нет</h2><p>Здесь видны приёмы из копии, которую прислал врач. Все прошлые приёмы — в «Журнале приёмов», карты и планы лечения — в «Пациентах».</p></div>';
     return out + '<div class="card empty-state"><h2>Пациент пришёл?</h2><p>Нажмите «Начать приём»: найдите пациента по фамилии или добавьте нового, выберите процедуру — дальше программа проведёт по шагам.</p>' +
@@ -1459,16 +1706,18 @@ function renderStart(){
   }
   return crumbs([secCrumb(), ['Начать приём']]) +
     '<div class="card stack wizard"><div class="wizard-head"><span class="wz-step">Шаг 1 из 2</span><h2>Кто пришёл на приём?</h2>' +
-      '<p class="muted">Начните писать фамилию — пациент найдётся. Если он пришёл впервые, добавьте его.</p></div>' +
+      '<p class="muted">Начните писать фамилию — пациент найдётся. ' + (S.settings.reg.only ? 'Новых пациентов заводит администратор.' : 'Если он пришёл впервые, добавьте его.') + '</p></div>' +
     '<label class="field"><span>Фамилия или № карты</span><input type="search" id="sq" data-f="sq" value="' + esc(S.ui.sq || '') + '" placeholder="Например, Иванова" autocomplete="off" enterkeyhint="search" data-autofocus></label>' +
     '<div id="start-results">' + startResultsHtml() + '</div>' +
-    '<div class="new-row"><span>Пациент пришёл впервые?</span><button type="button" class="btn btn-primary" data-act="new-patient" data-from="start">+ Новый пациент</button></div></div>';
+    (S.settings.reg.only
+      ? '<div class="new-row"><span>Нет пациента в списке? Пациентов заводит администратор — примите свежий файл от него.</span>' + regImportBtn() + '</div></div>'
+      : '<div class="new-row"><span>Пациент пришёл впервые?</span><span class="row">' + regImportBtn('Принять от администратора') + '<button type="button" class="btn btn-primary" data-act="new-patient" data-from="start">+ Новый пациент</button></span></div></div>');
 }
 function startResultsHtml(){
   const q = clean(S.ui.sq || '');
-  if (!S.patients.size) return '<p class="note">Пациентов пока нет — нажмите «+ Новый пациент».</p>';
+  if (!S.patients.size) return '<p class="note">' + (S.settings.reg.only ? 'Пациентов пока нет — примите файл от администратора.' : 'Пациентов пока нет — нажмите «+ Новый пациент».') + '</p>';
   const list = q ? findPatients(q).slice(0, 30) : [...S.patients.values()].filter(p => p.openedAt).sort((a, b) => b.openedAt - a.openedAt).slice(0, 6);
-  if (!list.length) return q ? '<p class="note">Никого не нашли. Если пациент пришёл впервые — добавьте его кнопкой ниже.</p>' : '';
+  if (!list.length) return q ? '<p class="note">' + (S.settings.reg.only ? 'Никого не нашли. Если пациент пришёл впервые — попросите администратора завести его и прислать файл.' : 'Никого не нашли. Если пациент пришёл впервые — добавьте его кнопкой ниже.') + '</p>' : '';
   return (q ? '' : '<p class="small muted" style="margin-bottom:6px">Недавние пациенты</p>') + '<div class="plist">' + list.map(p => patientRow(p, 'start-pick')).join('') + '</div>';
 }
 
@@ -1577,15 +1826,18 @@ function renderDocsPage(){
 
 /* «Пациенты»: все карты по алфавиту */
 function renderPatients(){
-  return '<div class="page-head"><div><h1>Пациенты</h1><p>Все карты по алфавиту. В карте — история приёмов, согласия, план лечения.</p></div>' +
-      '<button type="button" class="btn btn-primary" data-act="new-patient">+ Новый пациент</button></div>' +
+  const view = viewMode();
+  const btns = view ? '<button type="button" class="btn" data-act="reg-export">Файл для врача</button><button type="button" class="btn btn-primary" data-act="new-patient">+ Новый пациент</button>'
+    : regImportBtn() + (S.settings.reg.only ? '' : '<button type="button" class="btn btn-primary" data-act="new-patient">+ Новый пациент</button>');
+  return '<div class="page-head"><div><h1>Пациенты</h1><p>' + (view ? 'Все карты по алфавиту. Новых пациентов заводите здесь, потом сохраните «Файл для врача».' : 'Все карты по алфавиту. В карте — история приёмов, согласия, план лечения.') + '</p></div>' +
+      '<div class="row">' + btns + '</div></div>' +
     '<div class="card stack"><label class="field"><span>Поиск: фамилия или № карты</span><input type="search" id="q" data-f="q" value="' + esc(S.ui.q) + '" placeholder="Например, Иванова" autocomplete="off" enterkeyhint="search"></label>' +
       '<div id="patient-list">' + patientListHtml() + '</div></div>';
 }
 function patientListHtml(){
-  if (!S.patients.size) return '<p class="note">Пациентов пока нет. Новый пациент добавляется здесь или при «Начать приём» в разделе «Сегодня».</p>';
+  if (!S.patients.size) return '<p class="note">' + (viewMode() ? 'Пациентов пока нет. Нажмите «+ Новый пациент».' : S.settings.reg.only ? 'Пациентов пока нет. Их заводит администратор — примите от него файл кнопкой «Принять пациентов от администратора».' : 'Пациентов пока нет. Новый пациент добавляется здесь или при «Начать приём» в разделе «Сегодня».') + '</p>';
   const q = clean(S.ui.q), list = findPatients(q);
-  if (!list.length) return '<p class="note">Никого не нашли. Проверьте фамилию или добавьте нового пациента.</p>';
+  if (!list.length) return '<p class="note">' + (!viewMode() && S.settings.reg.only ? 'Никого не нашли. Проверьте фамилию или примите свежий файл от администратора.' : 'Никого не нашли. Проверьте фамилию или добавьте нового пациента.') + '</p>';
   const shown = list.slice(0, S.ui.plimit);
   return '<p class="small muted" style="margin-bottom:6px">' + (q ? 'Найдено: ' + list.length : 'Всего пациентов: ' + list.length) + '</p><div class="plist">' + shown.map(p => patientRow(p)).join('') + '</div>' +
     (list.length > shown.length ? '<div class="row" style="margin-top:10px"><button type="button" class="btn" data-act="more-patients">Показать ещё</button></div>' : '');
@@ -1628,7 +1880,7 @@ function banners(){
   if (viewMode()){
     const vc = S.settings.viewCopy || {};
     if (L.expired) out += '<div class="banner bad" role="alert"><span><b>Срок кода активации закончился ' + fmtDot(L.until) + '.</b> Напишите нам: Telegram @aikiren.</span></div>';
-    out += '<div class="banner info view-banner"><span><b>Режим просмотра для администратора.</b> Данные из копии врача от ' + (vc.createdAt ? fmtDT(vc.createdAt) : '—') + '. Новые приёмы появятся, когда откроете свежую копию.</span>' +
+    out += '<div class="banner info view-banner"><span><b>Компьютер администратора.</b> Приёмы и планы — из копии врача от ' + (vc.createdAt ? fmtDT(vc.createdAt) : '—') + '. Новые приёмы появятся, когда откроете свежую копию.</span>' +
       (S.ui.view === 'settings' ? '' : '<button type="button" class="btn small" data-act="goto-settings" data-tab="">Открыть новую копию</button>') + '</div>';
     if (S.saveState === 'err') out += '<div class="banner bad" role="alert"><span><b>Изменения не сохранились.</b> Возможно, на компьютере закончилось место.</span></div>';
     return out;
@@ -1659,9 +1911,9 @@ function helpBody(){
       '<li><b>Настройки.</b> Нажмите ' + kb('Настройки') + '. В разделе «Клиника и специалист» загрузите логотип и QR-код для бланков, впишите телефон, полное название и адрес клиники. В разделе «Согласия» проверьте тексты согласий.</li>' +
     '</ol></section>' +
     '<section class="g-sec"><h3>Как проходит приём — по порядку</h3><ol class="g-steps">' +
-      '<li><b>Запись.</b> Администратор записывает пациента, как обычно. В программе на этом шаге ничего делать не нужно.</li>' +
+      '<li><b>Запись.</b> Администратор записывает пациента, как обычно. Если у администратора своя программа, нового пациента он заводит там и присылает врачу файл.</li>' +
       '<li><b>Пациент пришёл.</b> Специалист открывает программу и вводит PIN. Открывается раздел «Сегодня».</li>' +
-      '<li><b>Кто пришёл.</b> Нажмите ' + kb('+ Начать приём', 1) + ' и начните писать фамилию — пациент найдётся, нажмите на него. Пациент пришёл впервые? Нажмите ' + kb('+ Новый пациент', 1) + ' и заполните ФИО, дату рождения, аллергию и болезни. Телефон и паспорт не нужны.</li>' +
+      '<li><b>Кто пришёл.</b> Нажмите ' + kb('+ Начать приём', 1) + ' и начните писать фамилию — пациент найдётся, нажмите на него. Пациент пришёл впервые? Нажмите ' + kb('+ Новый пациент', 1) + ' и заполните ФИО, дату рождения, аллергию и болезни — или примите файл от администратора.</li>' +
       '<li><b>Какая процедура.</b> Нажмите на нужную процедуру — откроется протокол приёма. Шаги идут сверху вниз:<ul>' +
         '<li>согласие на обработку персональных данных — только на первом визите: ' + kb('Распечатать согласие') + ', пациент вписывает паспорт и адрес от руки и подписывает, поставьте галочку;</li>' +
         '<li>чек-лист перед процедурой — отметьте галочки;</li>' +
@@ -1693,10 +1945,10 @@ function helpBody(){
       '<li>Новый ноутбук: откройте программу на нём, попросите у нас код для его номера, затем на первом экране нажмите «Восстановить из копии». Понадобятся файл копии и пароль клиники.</li>' +
       '<li>Забыли PIN — на экране входа нажмите «Забыли PIN?», понадобится пароль клиники.</li>' +
     '</ul></section>' +
-    '<section class="g-sec"><h3>Администратору: режим просмотра</h3><ul>' +
-      '<li>Чтобы администратор видел карты, планы лечения, приёмы и препараты на своём компьютере, мы присылаем для него отдельный код — режим просмотра.</li>' +
-      '<li>Врач в конце дня нажимает ' + kb('Копия для администратора') + ' на экране «Сегодня» и отправляет файл из «Загрузок» администратору. Файл зашифрован: открыть его можно только паролем клиники.</li>' +
-      '<li>Администратор открывает файл в программе: первый раз — на первом экране, потом — кнопкой ' + kb('Открыть новую копию') + ' вверху. Распечатать можно, менять записи на его компьютере нельзя.</li>' +
+    '<section class="g-sec"><h3>Администратору</h3><ul>' +
+      '<li>У администратора своя программа по отдельному коду. Первый раз он открывает копию от врача («Копия для администратора» на экране «Сегодня»). Копия зашифрована, открывается паролем клиники.</li>' +
+      '<li>Администратор заводит пациентов кнопкой ' + kb('+ Новый пациент') + ': ФИО, дата рождения, паспорт, адрес, анамнез. В карте пациента — «Документы на подпись», паспорт подставляется сам. Потом нажимает ' + kb('Файл для врача') + ' и отправляет файл врачу.</li>' +
+      '<li>Врач нажимает «Принять пациентов от администратора» и выбирает пациента из списка. Паспорт и адрес врачу не видны. Приёмы и планы меняет только врач, у администратора они обновляются со свежей копией.</li>' +
     '</ul></section>' +
     '<section class="g-sec"><h3>Чтобы карты не увидели чужие</h3><ul>' +
       '<li>Карты пациентов на компьютере зашифрованы: без PIN их не открыть, даже через настройки браузера. После 10 неверных PIN подряд вход — только с паролем клиники.</li>' +
@@ -1717,23 +1969,37 @@ function renderPatientForm(){
   const p = isNew ? {sex: 'ж'} : (pat(S.ui.edit) || {});
   const txt = (id, val, extra) => '<input type="text" id="' + id + '" value="' + esc(val || '') + '" autocomplete="off"' + (extra || '') + '>';
   const area = (id, val) => '<textarea id="' + id + '" rows="2" style="min-height:58px">' + esc(val || '') + '</textarea>';
-  const canDel = !isNew && !visitsOf(p.id).some(v => v.status === 'done' || (v.log || []).some(l => /Завершён/.test(l.what)));
+  const view = viewMode(), fromAdmin = !view && !!p.byAdmin, med = !view || isNew || !!p.adminNew;
+  const hd = fromAdmin ? ' disabled' : '', ps = p.pass || {};
+  const canDel = !isNew && (view ? !!p.adminNew : !visitsOf(p.id).some(v => v.status === 'done' || (v.log || []).some(l => /Завершён/.test(l.what))));
   const trail = isNew ? (S.ui.start ? [secCrumb(), ['Начать приём', 'data-act="pf-cancel"'], ['Новый пациент']] : [secCrumb(), ['Новый пациент']])
     : [secCrumb(), [esc(fio(p)), 'data-act="pf-cancel"'], ['Изменить данные']];
-  return crumbs(trail) + '<div class="stack"><div class="card stack" id="pform"><h2>' + (isNew ? 'Новый пациент' : 'Изменить данные пациента') + '</h2>' +
-    '<div class="lock">' + ICON_LOCK + '<span>Только медицинская часть. Телефон, паспорт и адрес сюда не вносятся — они остаются в системе записи клиники.</span></div>' +
+  const lockTxt = view ? 'Паспорт и адрес видит только администратор. Врачу уходят ФИО, дата рождения' + (med ? ' и анамнез' : '') + '.'
+    : fromAdmin ? 'ФИО и дату рождения заполняет администратор — исправить их может он. Паспорт и адрес врачу не видны.'
+    : 'Только медицинская часть. Паспорт и адрес заполняет администратор на своём компьютере, врачу они не видны.';
+  const passBlock = !view ? '' : '<div class="span3 pf-sub"><h3>Паспорт и адрес</h3><p class="note">Видны только на этом компьютере. Подставляются в согласие на обработку данных и в документы на подпись.</p></div>' +
+      field('Серия', txt('pf-pser', ps.ser, ' inputmode="numeric" maxlength="10"')) +
+      field('Номер', txt('pf-pnum', ps.num, ' inputmode="numeric" maxlength="12"')) +
+      field('Дата выдачи', '<input type="date" id="pf-pdate" value="' + esc(ps.date || '') + '" min="1900-01-01" max="' + todayIso() + '">') +
+      field('Кем выдан', txt('pf-pby', ps.by), false, 'span3') +
+      field('Код подразделения', txt('pf-pcode', ps.code, ' maxlength="10" placeholder="000-000"')) +
+      field('Адрес регистрации', area('pf-addr', ps.addr), false, 'span3');
+  return crumbs(trail) + '<div class="stack"><div class="card stack" id="pform" data-admin-ok><h2>' + (isNew ? 'Новый пациент' : 'Изменить данные пациента') + '</h2>' +
+    '<div class="lock">' + ICON_LOCK + '<span>' + lockTxt + '</span></div>' +
     '<div class="form-grid">' +
-      field('Фамилия', txt('pf-last', p.last, ' data-autofocus'), true) +
-      field('Имя', txt('pf-first', p.first), true) +
-      field('Отчество', txt('pf-middle', p.middle)) +
-      field('Дата рождения', '<input type="date" id="pf-birth" value="' + esc(p.birth || '') + '" min="1900-01-01" max="' + todayIso() + '">', true) +
-      field('Пол', '<select id="pf-sex"><option value="ж"' + (p.sex !== 'м' ? ' selected' : '') + '>женский</option><option value="м"' + (p.sex === 'м' ? ' selected' : '') + '>мужской</option></select>') +
-      field('№ медицинской карты', txt('pf-card', p.card, ' placeholder="номер бумажной карты, если есть"')) +
-      '<label class="checkline span3"><input type="checkbox" id="pf-before"' + (p.wasBefore ? ' checked' : '') + '><span>Пациент уже бывал в клинике до этой программы — тогда приём считается повторным</span></label>' +
-      field('Аллергия', area('pf-allergy', p.allergy), false, 'span3') +
-      field('Хронические заболевания', area('pf-chronic', p.chronic), false, 'span3') +
-      field('Принимает препараты', area('pf-meds', p.meds), false, 'span3') +
-      field('Заметки', area('pf-note', p.note), false, 'span3') +
+      field('Фамилия', txt('pf-last', p.last, ' data-autofocus' + hd), true) +
+      field('Имя', txt('pf-first', p.first, hd), true) +
+      field('Отчество', txt('pf-middle', p.middle, hd)) +
+      field('Дата рождения', '<input type="date" id="pf-birth" value="' + esc(p.birth || '') + '" min="1900-01-01" max="' + todayIso() + '"' + hd + '>', true) +
+      field('Пол', '<select id="pf-sex"' + hd + '><option value="ж"' + (p.sex !== 'м' ? ' selected' : '') + '>женский</option><option value="м"' + (p.sex === 'м' ? ' selected' : '') + '>мужской</option></select>') +
+      field('№ медицинской карты', txt('pf-card', p.card, ' placeholder="номер бумажной карты, если есть"' + hd)) +
+      passBlock +
+      (med ? (view ? '<div class="span3 pf-sub"><h3>Анамнез для врача</h3><p class="note">Можно заполнить по анкете здоровья. Врач получит его вместе с пациентом и дальше ведёт сам.</p></div>' : '') +
+        '<label class="checkline span3"><input type="checkbox" id="pf-before"' + (p.wasBefore ? ' checked' : '') + '><span>Пациент уже бывал в клинике до этой программы — тогда приём считается повторным</span></label>' +
+        field('Аллергия', area('pf-allergy', p.allergy), false, 'span3') +
+        field('Хронические заболевания', area('pf-chronic', p.chronic), false, 'span3') +
+        field('Принимает препараты', area('pf-meds', p.meds), false, 'span3') +
+        field('Заметки', area('pf-note', p.note), false, 'span3') : '') +
     '</div>' + errBox(S.ui.formErr) +
     '<div class="row end">' + (canDel ? '<button type="button" class="btn btn-ghost btn-danger" data-act="pf-delete" style="margin-right:auto">Удалить пациента</button>' : '') +
       '<button type="button" class="btn" data-act="pf-cancel">Отмена</button><button type="button" class="btn btn-primary" data-act="pf-save">' + (isNew ? 'Добавить пациента' : 'Сохранить') + '</button></div></div></div>';
@@ -1761,14 +2027,21 @@ function savePatientForm(){
   }
   const p = isNew ? {id: uid(), createdAt: Date.now()} : pat(S.ui.edit);
   if (!p) return;
-  Object.assign(p, {last, first, middle, birth, sex: val('pf-sex') === 'м' ? 'м' : 'ж', card: clean(val('pf-card')), wasBefore: !!($('#pf-before') || {}).checked,
-    allergy: val('pf-allergy').trim(), chronic: val('pf-chronic').trim(), meds: val('pf-meds').trim(), note: val('pf-note').trim(), openedAt: Date.now()});
+  const view = viewMode();
+  if (view || !p.byAdmin) Object.assign(p, {last, first, middle, birth, sex: val('pf-sex') === 'м' ? 'м' : 'ж', card: clean(val('pf-card'))});
+  if ($('#pf-allergy')) Object.assign(p, {wasBefore: !!($('#pf-before') || {}).checked, allergy: val('pf-allergy').trim(), chronic: val('pf-chronic').trim(), meds: val('pf-meds').trim(), note: val('pf-note').trim()});
+  p.openedAt = Date.now();
+  if (view){
+    p.pass = cleanPass({ser: val('pf-pser'), num: val('pf-pnum'), date: val('pf-pdate'), by: val('pf-pby'), code: val('pf-pcode'), addr: val('pf-addr')});
+    p.adminAt = Date.now();
+    if (isNew){ p.byAdmin = true; p.adminNew = true; }
+  }
   S.patients.set(p.id, p); queue('patients', p);
   S.ui.edit = null; S.ui.formErr = ''; S.ui.vid = null;
-  if (isNew && S.ui.from === 'start'){ S.ui.start = {step: 'proc', pid: p.id}; S.ui.pid = null; } else { S.ui.start = null; S.ui.pid = p.id; }
+  if (isNew && S.ui.from === 'start' && !view){ S.ui.start = {step: 'proc', pid: p.id}; S.ui.pid = null; } else { S.ui.start = null; S.ui.pid = p.id; }
   S.ui.from = '';
   render(); window.scrollTo(0, 0);
-  toast(isNew ? 'Пациент добавлен.' : 'Данные пациента сохранены.');
+  toast(view ? (isNew ? 'Пациент добавлен. Когда заведёте всех, нажмите «Файл для врача» и отправьте файл врачу.' : 'Данные сохранены. Чтобы врач увидел изменения, отправьте ему новый файл.') : isNew ? 'Пациент добавлен.' : 'Данные пациента сохранены.', view ? 7000 : 3600);
 }
 
 /* карта пациента */
@@ -1809,7 +2082,8 @@ function renderPatient(p){
   const tab = PTABS.some(x => x[0] === S.ui.ptab) ? S.ui.ptab : 'card';
   const meta = [ageWord(age(p.birth)), p.birth ? 'д. р. ' + fmtDot(p.birth) : '', p.card ? 'карта № ' + esc(p.card) : ''].filter(Boolean).join(' · ');
   const head = '<div class="pcard-head"><div><h1>' + esc(fio(p)) + '</h1><p class="muted">' + meta + ' ' + (isRepeatPatient(p) ? '<span class="chip kind">повторный</span>' : '<span class="chip info">первичный</span>') + '</p></div>' +
-    '<div class="row">' + (draft ? '' : '<button type="button" class="btn btn-primary btn-lg" data-act="start-visit" data-pid="' + p.id + '">+ Начать приём</button>') +
+    '<div class="row">' + (viewMode() ? '<button type="button" class="btn btn-primary btn-lg" data-act="print-docs" data-pid="' + p.id + '" data-tab="' + (S.admin.docs[0] ? 'c:' + S.admin.docs[0].id : 'pd') + '">' + ICON_PRINT + 'Документы на подпись</button>'
+      : draft ? '' : '<button type="button" class="btn btn-primary btn-lg" data-act="start-visit" data-pid="' + p.id + '">+ Начать приём</button>') +
     '<button type="button" class="btn" data-act="edit-patient" data-pid="' + p.id + '">Изменить данные</button></div></div>';
   const draftBanner = draft ? '<div class="banner" style="margin:0"><span><b>' + (draft.date === todayIso() ? 'Идёт приём' : 'Не завершён приём от ' + fmtLong(draft.date)) + '</b> — ' + esc(draft.procName) + '.</span><button type="button" class="btn btn-primary small" data-act="open-visit" data-vid="' + draft.id + '">Продолжить приём</button></div>' : '';
   const nav = '<nav class="ptabs" role="tablist" aria-label="Разделы карты">' + PTABS.map(x => '<button type="button" role="tab" data-act="ptab" data-tab="' + x[0] + '" aria-selected="' + (x[0] === tab) + '">' + x[1] + (x[0] === 'visits' && done.length ? ' <span class="muted">' + done.length + '</span>' : '') + '</button>').join('') + '</nav>';
@@ -1824,10 +2098,13 @@ function renderPatient(p){
     const kv = (k, v) => '<dt>' + k + '</dt><dd>' + v + '</dd>';
     body = '<div class="pgrid"><section class="card stack"><h2 class="sec-h">Общие сведения</h2><dl class="kv">' +
         kv('ФИО', esc(fio(p))) + kv('Дата рождения', p.birth ? fmtDot(p.birth) + ' (' + ageWord(age(p.birth)) + ')' : '—') + kv('Пол', p.sex === 'м' ? 'мужской' : 'женский') +
-        kv('№ медкарты', dash(p.card)) + kv('Согласие на обработку ПД', p.pdConsentAt ? 'подписано ' + fmtDot(p.pdConsentAt) : '<span class="muted">не отмечено</span>') + kv('Приёмов', String(done.length)) + '</dl></section>' +
+        kv('№ медкарты', dash(p.card)) + kv('Согласие на обработку ПД', viewMode() ? '<label class="checkline" data-admin-ok><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (p.pdConsentAt ? ' checked' : '') + '><span>' + (p.pdConsentAt ? 'подписано ' + fmtDot(p.pdConsentAt) : 'отметьте, когда пациент подпишет') + '</span></label>'
+          : p.pdConsentAt ? 'подписано ' + fmtDot(p.pdConsentAt) : '<span class="muted">не отмечено</span>') + kv('Приёмов', String(done.length)) +
+        (viewMode() ? kv('Паспорт', hasPass(p.pass) && (p.pass.ser || p.pass.num) ? esc([p.pass.ser, p.pass.num].filter(Boolean).join(' ')) + (p.pass.date ? ', выдан ' + fmtDot(p.pass.date) : '') : '<span class="muted">не заполнен</span>') +
+          kv('Адрес регистрации', dash(p.pass && p.pass.addr)) + (p.adminNew ? kv('Врачу', '<span class="chip warn">ещё не отправлен</span>') : '') : '') + '</dl></section>' +
       '<section class="card stack"><h2 class="sec-h">Анамнез</h2><dl class="kv">' + kv('Аллергия', dash(p.allergy)) + kv('Хронические заболевания', dash(p.chronic)) + kv('Принимает препараты', dash(p.meds)) + kv('Заметки', dash(p.note)) + '</dl></section></div>' +
       '<section class="card stack"><div class="card-head"><h2 class="sec-h">Последний приём</h2>' + (done.length > 1 ? '<button type="button" class="btn small" data-act="ptab" data-tab="visits">Все приёмы</button>' : '') + '</div>' +
-        (done[0] ? '<div class="vlist">' + visitRow(done[0], true) + '</div>' : '<p class="note">Приёмов в программе ещё не было. Нажмите «Начать приём».</p>') + '</section>';
+        (done[0] ? '<div class="vlist">' + visitRow(done[0], true) + '</div>' : '<p class="note">' + (viewMode() ? 'Приёмов ещё не было. Приёмы проводит врач — они появятся здесь, когда откроете свежую копию от врача.' : 'Приёмов в программе ещё не было. Нажмите «Начать приём».') + '</p>') + '</section>';
   }
   return crumbs([secCrumb(), [esc(fio(p))]]) + '<div class="stack">' + head + allergyAlert(p) + draftBanner + nav + body + '</div>';
 }
@@ -1917,13 +2194,14 @@ function renderVisit(v){
   const step = (key, n, title, body) => '<div class="step' + (done[key] ? ' done' : '') + '" data-step="' + key + '" data-n="' + n + '"><div class="step-n">' + (done[key] ? ICON_CHECK : n) + '</div><div style="min-width:0"><h3>' + title + '</h3>' + body + '</div></div>';
   const list = [];
   if (!p.pdConsentAt || p.pdConsentAt === v.date) list.push(['pd', 'Согласие на обработку персональных данных',
-    '<p class="note" style="margin-bottom:8px">Подписывают один раз, на первом визите. Распечатайте согласие: паспорт и адрес пациент впишет от руки. Подписанный лист вложите в медкарту.</p>' +
+    '<p class="note" style="margin-bottom:8px">' + (p.byAdmin ? 'Подписывают один раз, на первом визите. Пациента завёл администратор: согласие с паспортом и адресом удобнее распечатать на его компьютере. Когда пациент подпишет, отметьте галочку.' : 'Подписывают один раз, на первом визите. Распечатайте согласие: паспорт и адрес пациент впишет от руки. Подписанный лист вложите в медкарту.') + '</p>' +
     '<div class="row"><button type="button" class="btn small" data-act="print-docs" data-pid="' + p.id + '" data-tab="pd">' + ICON_PRINT + 'Распечатать согласие</button></div>' +
     '<div class="checks" style="margin-top:8px"><label><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (p.pdConsentAt ? ' checked' : '') + dis + '><span>Пациент подписал согласие на обработку персональных данных</span></label></div>']);
-  if (v.checklist.length) list.push(['check', 'Перед процедурой', '<div class="checks">' + v.checklist.map((c, i) => '<label><input type="checkbox" data-f="check" data-i="' + i + '"' + (v.checked[i] ? ' checked' : '') + dis + '><span>' + esc(c) + '</span></label>').join('') + '</div>']);
+  if (v.checklist.length) list.push(['check', 'Перед процедурой', '<p class="note" style="margin-bottom:8px">Короткая проверка безопасности. Отметки сохраняются в протоколе приёма: если пациент потом предъявит претензию, видно, что перед процедурой всё проверено. Пункты меняются в настройках, раздел «Приём».</p><div class="checks">' + v.checklist.map((c, i) => '<label><input type="checkbox" data-f="check" data-i="' + i + '"' + (v.checked[i] ? ' checked' : '') + dis + '><span>' + esc(c) + '</span></label>').join('') + '</div>']);
   list.push(['diag', 'Жалобы и осмотр', tplField('diag', 'diag-' + v.id, v.diag, dis, 'Что беспокоит пациента и что видит специалист',
     'Начните писать слово (например, «морщ», «сух» или «кожа») — появятся готовые фразы. Свои фразы добавляются в настройках.') +
-    '<div style="margin-top:10px">' + field('Диагноз — если ставите (можно с кодом МКБ-10)', '<input type="text" data-f="dx" id="dx-' + v.id + '" value="' + esc(v.dx || '') + '" autocomplete="off"' + dis + '>') + '</div>']);
+    '<div style="margin-top:10px">' + field('Диагноз — если ставите', '<input type="text" data-f="dx" data-tpl="dx" id="dx-' + v.id + '" value="' + esc(v.dx || '') + '" autocomplete="off"' + (dis ? dis : ' aria-describedby="hint-dx"') + '>') +
+      (dis ? '' : '<div class="tpl" id="tpl-dx" role="listbox" aria-label="Диагнозы" hidden></div><p class="note" id="hint-dx" style="margin-top:6px">Начните писать диагноз или код (например, «угри», «пигм» или «L70») — появятся диагнозы с кодом МКБ-10.</p>') + '</div>']);
   if (v.flags.drug) list.push(['drug', 'Препарат', '<div class="grid3">' +
     field('Название', '<input type="text" id="drug-' + v.id + '" data-f="drug" list="dl-drug" value="' + esc(v.drug) + '" autocomplete="off"' + dis + '>') +
     field('Серия', '<input type="text" id="batch-' + v.id + '" data-f="batch" value="' + esc(v.batch) + '" autocomplete="off"' + dis + '>') +
@@ -2143,12 +2421,14 @@ const fillLine = mm => '<span class="fill-line" style="min-width:' + mm + 'mm"><
 const paras = text => lines(text).map(t => '<p>' + esc(t) + '</p>').join('');
 function pdPaper(p){
   const legal = clean(S.settings.clinic.legal);
+  const ps = viewMode() && p && hasPass(p.pass) ? p.pass : null;   // паспорт есть только на компьютере администратора
+  const pv = (k, mm) => ps && ps[k] ? '<b>' + esc(k === 'date' ? fmtDot(ps[k]) : ps[k]) + '</b>' : fillLine(mm);
   return '<div class="paper doc">' + paperTop('') +
     '<h4 class="doc-title">Согласие на обработку персональных данных</h4>' +
     '<p>Я, ' + (p ? '<b>' + esc(fio(p)) + '</b>' : fillLine(100)) + ', ' + (p && p.birth ? fmtDot(p.birth) : fillLine(26)) + ' г. р.,</p>' +
-    '<p>паспорт: серия ' + fillLine(16) + ' № ' + fillLine(28) + ' выдан ' + fillLine(78) + '</p>' +
-    '<p>дата выдачи ' + fillLine(26) + ', адрес регистрации: ' + fillLine(98) + '</p>' +
-    '<p>' + fillLine(170) + '</p>' +
+    '<p>паспорт: серия ' + pv('ser', 16) + ' № ' + pv('num', 28) + ' выдан ' + pv('by', 78) + '</p>' +
+    '<p>дата выдачи ' + pv('date', 26) + (ps && ps.code ? ', код подразделения <b>' + esc(ps.code) + '</b>' : '') + ', адрес регистрации: ' + pv('addr', 98) + '</p>' +
+    (ps && ps.addr ? '' : '<p>' + fillLine(170) + '</p>') +
     '<p>даю ' + (legal ? '<b>' + esc(legal) + '</b>' : fillLine(120) + ' <span class="hint">(название и адрес клиники)</span>') + ' (далее — Клиника) согласие на обработку моих персональных данных на следующих условиях.</p>' +
     paras(S.settings.docs.pd) +
     '<div class="sign"><span>Дата: ' + (p ? fmtDot(todayIso()) : fillLine(26)) + '</span><span>Подпись: ____________ / ' + (p ? esc(shortName(fio(p))) : fillLine(36)) + '</span></div></div>';
@@ -2171,7 +2451,7 @@ function docsCard(p){
   return '<section class="card stack" aria-label="Согласия на подпись"><div class="card-head"><div><h2 style="font-size:17px">Согласия на подпись</h2>' +
       '<p class="note" style="margin-top:3px">Согласие на обработку персональных данных подписывают один раз, на первом визите. Согласие на процедуру — на каждом приёме, кнопка есть в протоколе.</p></div>' +
       '<button type="button" class="btn" data-act="print-docs" data-pid="' + p.id + '" data-tab="pd">' + ICON_PRINT + 'Распечатать согласие</button></div>' +
-    '<label class="checkline"><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (ok ? ' checked' : '') + '><span>' +
+    '<label class="checkline"' + (viewMode() ? ' data-admin-ok' : '') + '><input type="checkbox" data-f="pdc" data-pid="' + p.id + '"' + (ok ? ' checked' : '') + '><span>' +
       (ok ? 'Согласие на обработку персональных данных подписано ' + fmtDot(p.pdConsentAt) : 'Пациент подписал согласие на обработку персональных данных') + '</span></label></section>';
 }
 
@@ -2206,11 +2486,15 @@ function renderModal(){
     if (M.pid && !p){ S.ui.modal = null; return renderModal(); }
     const pr = M.proc === '' ? null : (procById(M.proc) || S.settings.procs.find(x => x.consent) || S.settings.procs[0]);
     title = p ? fio(p) : 'Пустые бланки'; sub = p ? 'Документы на подпись' : 'Для заполнения от руки';
-    tabs = [['ids', 'Согласие на процедуру'], ['pd', 'Согласие на обработку данных']].concat(p ? [] : [['plan', 'План лечения'], ['recs', 'Рекомендации']]);
+    const own = viewMode() ? S.admin.docs : [];
+    tabs = [['ids', 'Согласие на процедуру'], ['pd', 'Согласие на обработку данных']].concat(own.map(d => ['c:' + d.id, d.title])).concat(p ? [] : [['plan', 'План лечения'], ['recs', 'Рекомендации']]);
+    if (/^c:/.test(M.tab || '') && !own.some(d => 'c:' + d.id === M.tab)) M.tab = 'pd';
     const pick = '<label class="field" style="max-width:340px">Процедура<select data-f="docproc">' + procOptions(pr && pr.id) + '<option value=""' + (pr ? '' : ' selected') + '>— вписать от руки —</option></select></label>';
-    paper = M.tab === 'pd' ? pdPaper(p) : M.tab === 'plan' ? planPaper(EMPTY_PLAN, null) : M.tab === 'recs' ? recsPaper(EMPTY_PLAN, null) : idsPaper(p, pr, M.date || todayIso());
+    const ownDoc = own.find(d => 'c:' + d.id === M.tab);
+    paper = ownDoc ? customPaper(ownDoc, p) : M.tab === 'pd' ? pdPaper(p) : M.tab === 'plan' ? planPaper(EMPTY_PLAN, null) : M.tab === 'recs' ? recsPaper(EMPTY_PLAN, null) : idsPaper(p, pr, M.date || todayIso());
     if (M.tab === 'ids') paper = pick + '<div style="height:10px"></div>' + paper;
-    note = M.tab === 'pd' ? 'Паспорт и адрес пациент вписывает от руки — в программе их нет. Подписанный лист вложите в медкарту.'
+    note = ownDoc ? 'Данные пациента подставлены вместо слов в фигурных скобках. Текст меняется в «Настройках → Документы на подпись».'
+      : M.tab === 'pd' ? (viewMode() && p && hasPass(p.pass) ? 'Паспорт и адрес подставлены из карты пациента. Подписанный лист вложите в медкарту.' : 'Паспорт и адрес пациент вписывает от руки. Подписанный лист вложите в медкарту.')
       : M.tab === 'ids' ? 'Пациент и специалист подписывают, лист вкладывается в медкарту. Текст меняется в «Настройках → Документы».' : 'Пустой бланк заполняется от руки.';
   } else {
     const v = vis(M.id), p = v && pat(v.pid);
@@ -2243,8 +2527,8 @@ window.addEventListener('afterprint', () => { const r = document.getElementById(
 const STABS = [
   ['clinic', 'Клиника и специалист', 'Название клиники, ФИО специалиста, телефон, логотип и QR-код для бланков, полное название и адрес для согласий'],
   ['procs', 'Процедуры', 'Какие процедуры есть в «Начать приём» и что по каждой спрашивать: препарат, схему уколов, согласие, памятку'],
-  ['protocol', 'Приём', 'Чек-лист перед процедурой и без чего программа не даст завершить приём'],
-  ['phrases', 'Шаблоны фраз', 'Готовые фразы, которые появляются, когда специалист пишет жалобы, осмотр и памятку'],
+  ['protocol', 'Приём', 'Чек-лист перед процедурой, без чего программа не даст завершить приём, кто заводит новых пациентов'],
+  ['phrases', 'Шаблоны фраз', 'Готовые фразы для жалоб, осмотра и памятки и диагнозы с кодами МКБ-10'],
   ['docs', 'Согласия', 'Тексты согласия на обработку персональных данных и согласия на процедуру'],
   ['blanks', 'Бланки', 'Сколько строк на бланках и подсказки при заполнении: услуги, зоны, направления, косметика'],
   ['security', 'PIN и пароль', 'Вход в программу, автоблокировка, смена PIN специалиста и пароля клиники'],
@@ -2266,11 +2550,11 @@ function renderSettings(){
 /* настройки компьютера администратора: новая копия, свой PIN, код, удаление данных */
 function renderViewSettings(){
   const X = S.sec, vc = S.settings.viewCopy || {};
-  return '<div class="page-head"><div><h1>Настройки</h1><p>Компьютер администратора: режим просмотра. Карты здесь можно смотреть и печатать.</p></div></div><div class="stack">' +
+  return '<div class="page-head"><div><h1>Настройки</h1><p>Компьютер администратора: здесь заводят пациентов и печатают документы на подпись, карты из копии врача можно смотреть и печатать.</p></div></div><div class="stack">' +
     '<section class="card stack"><h3>Данные из копии врача</h3>' +
       '<p>' + (vc.createdAt ? 'Сейчас открыта копия от <b>' + fmtDT(vc.createdAt) + '</b>' + (vc.loadedAt ? ', открыта здесь ' + fmtDT(vc.loadedAt) : '') + '.' : 'Копия ещё не открыта.') + '</p>' +
       howto('Чтобы увидеть новые приёмы, попросите врача нажать «Копия для администратора» на экране «Сегодня» и прислать файл. Откройте его здесь — данные на этом компьютере обновятся.') +
-      restoreForm('view') + '</section>' +
+      restoreForm('view') + '</section>' + adminDocsSection() +
     '<section class="card stack"><h3>Сменить PIN этого компьютера</h3>' + howto('PIN — 6–8 цифр, его вводят при каждом входе на этом компьютере.') + '<div class="sgrid">' +
       field('Текущий PIN', pinIn('sp-cur')) + '<span></span>' +
       field('Новый PIN, 6–8 цифр', pinIn('sp-new')) +
@@ -2341,11 +2625,15 @@ function setProtocol(){
       sCheck('Отмечены все пункты чек-листа', 'req.check') + sCheck('Заполнены жалобы и осмотр', 'req.diag') +
       sCheck('Отмечено согласие пациента на обработку персональных данных', 'req.pd') +
       sCheck('Записана серия препарата', 'req.batch') + sCheck('Записан срок годности препарата', 'req.expiry') +
-      '<p class="note">Препарат, уколы на схеме, согласие на процедуру и памятка обязательны там, где они включены в разделе «Процедуры».</p></div></section>';
+      '<p class="note">Препарат, уколы на схеме, согласие на процедуру и памятка обязательны там, где они включены в разделе «Процедуры».</p></div></section>' +
+    '<section class="card stack"><h3>Новые пациенты</h3>' + howto('Если пациентов заводит администратор на своём компьютере, он отправляет врачу файл «Пациенты для врача», а врач принимает его кнопкой «Принять пациентов от администратора». Паспорт и адрес врачу не видны.') +
+      sCheck('Новых пациентов заводит только администратор — врач выбирает пациента из списка', 'reg.only') + '</section>';
 }
 function setPhrases(){
   return '<section class="card stack"><h3>Жалобы и осмотр</h3>' + howto('Когда специалист начинает писать слово, программа предлагает подходящие фразы. Каждая фраза — с новой строки.') +
       sList('Фразы', 'tpl.diag', '', 12) + '</section>' +
+    '<section class="card stack"><h3>Диагнозы с кодами МКБ-10</h3>' + howto('Подсказки для поля «Диагноз». Каждый диагноз — с новой строки: код, затем название. После « | » можно написать слова для поиска — в карту они не попадают.') +
+      sList('Диагнозы', 'tpl.dx', '', 10) + '</section>' +
     '<section class="card stack"><h3>Памятка после процедуры</h3>' + howto('Фразы для памятки пациенту. Каждая — с новой строки.') + sList('Фразы', 'tpl.memo', '', 9) + '</section>';
 }
 function setDocs(){
@@ -2449,9 +2737,9 @@ function tplMatches(kind, f, value){
   if (f.word.length < 2) return [];
   const w = norm(f.word), lead = norm(f.sent.slice(0, f.sent.length - f.word.length).trim()), have = norm(value);
   const out = [];
-  (S.settings.tpl[kind] || []).forEach((t, idx) => {
-    const nt = norm(t);
-    if (have.indexOf(nt) >= 0) return;
+  (S.settings.tpl[kind] || []).forEach((raw, idx) => {
+    const t = String(raw).split(' | ')[0].trim(), nt = norm(raw);   // ищем и по словам после « | », вставляем только то, что до них
+    if (!t || have.indexOf(norm(t)) >= 0) return;
     const words = nt.match(/[a-zа-я0-9-]+/g) || [];
     const wi = words.findIndex(x => x.startsWith(w));
     if (wi < 0) return;
@@ -2484,7 +2772,7 @@ function applyTpl(ta, t){
   let start, ins;
   if (lead && norm(t).startsWith(lead)){ start = f.pos - f.sent.length + (f.sent.length - f.sent.replace(/^\s+/, '').length); ins = t; }
   else if (!lead){ start = f.pos - f.word.length; ins = t; }
-  else { start = f.pos - f.word.length; ins = t.charAt(0).toLowerCase() + t.slice(1); }
+  else { start = f.pos - f.word.length; ins = ta.dataset.tpl === 'dx' ? t : t.charAt(0).toLowerCase() + t.slice(1); }
   const pre = v.slice(0, start), after = v.slice(f.pos).replace(/^[A-Za-zА-Яа-яЁё0-9-]+/, '');
   const lead2 = pre && !/\s$/.test(pre) ? ' ' : '';
   const tail = after && /^\s/.test(after) ? '' : ' ';
@@ -2573,7 +2861,7 @@ async function onClick(e){
   if (!e.target.closest('.tpl') && !(e.target.dataset && e.target.dataset.tpl)) hideTpl();
   const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
   const act = el.dataset.act;
-  if (viewMode() && S.settings && VIEW_BLOCK.has(act)){ toast('Это компьютер администратора: здесь можно смотреть и печатать, а менять записи — только у врача.', 5000); return; }
+  if (viewMode() && S.settings && VIEW_BLOCK.has(act)){ toast('Это компьютер администратора: приёмы и планы лечения меняет только врач. Здесь можно заводить пациентов и печатать документы.', 5000); return; }
   const v = curVisit();
   switch (act){
     case 'reload': location.reload(); break;
@@ -2626,7 +2914,7 @@ async function onClick(e){
       let ok = false;
       try { ok = await activate(code); } catch (err){ console.error(err); L.err = 'Не получилось сохранить код: ' + (err.message || err); }
       L.busy = false; render();
-      if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : L.view ? 'Программа активирована: режим просмотра для администратора.' : 'Программа активирована на этом компьютере.', 5000);
+      if (ok) toast(was ? 'Код обновлён: ' + (L.until ? 'действует до ' + fmtDot(L.until) : 'без срока') + '.' : L.view ? 'Программа активирована: компьютер администратора.' : 'Программа активирована на этом компьютере.', 5000);
       else { const ta = $('#act-code'); if (ta) ta.value = code; }
       return;
     }
@@ -2683,6 +2971,7 @@ async function onClick(e){
     case 'pf-save': return savePatientForm();
     case 'pf-delete': {
       const p = pat(S.ui.edit); if (!p) return;
+      if (viewMode() && !p.adminNew){ toast('Этот пациент уже есть у врача — удалить его может только врач.', 6000); return; }
       if (!confirm('Удалить пациента «' + fio(p) + '»? Незавершённые приёмы и планы этого пациента тоже удалятся.')) return;
       visitsOf(p.id).forEach(x => { S.visits.delete(x.id); queueDel('visits', x.id); });
       plansOf(p.id).forEach(x => { S.plans.delete(x.id); queueDel('plans', x.id); });
@@ -2736,7 +3025,7 @@ async function onClick(e){
       S.ui.vid = null; render(); toast('Приём удалён.'); return;
     }
     case 'print-visit': return openModal({kind: 'visit', id: S.ui.vid, tab: el.dataset.tab});
-    case 'tpl': { const ta = document.querySelector('textarea[data-tpl="' + el.dataset.kind + '"]'), t = TPL.items[+el.dataset.i]; if (ta && t) applyTpl(ta, t); return; }
+    case 'tpl': { const ta = document.querySelector('[data-tpl="' + el.dataset.kind + '"]'), t = TPL.items[+el.dataset.i]; if (ta && t) applyTpl(ta, t); return; }
     /* план и рекомендации */
     case 'plan-new': {
       const cur = curPlan(el.dataset.pid);
@@ -2751,6 +3040,11 @@ async function onClick(e){
     case 'cosm-del': { const pl = planFor(el); if (!pl) return; pl.cosm.splice(+el.dataset.i, 1); queue('plans', pl); render(); return; }
     case 'print-plan': flush(); return openModal({kind: 'plan', id: el.dataset.plan, tab: el.dataset.tab});
     case 'print-docs': flush(); return openModal({kind: 'docs', pid: el.dataset.pid, tab: el.dataset.tab, proc: el.dataset.proc, date: el.dataset.date});
+    /* администратор: файл для врача и свои документы */
+    case 'reg-export': try { await regExport(); } catch (err){ console.error(err); toast('Не удалось сохранить файл: ' + (err.message || err), 7000); } return;
+    case 'ad-add': S.admin.docs.push({id: uid(), title: 'Новый документ', text: ''}); saveAdmin(); render(); { const ins = document.querySelectorAll('[data-ad="title"]'); if (ins.length) ins[ins.length - 1].focus(); } return;
+    case 'ad-del': { const d = S.admin.docs[+el.dataset.i]; if (!d || !confirm('Удалить документ «' + d.title + '»?')) return; S.admin.docs.splice(+el.dataset.i, 1); saveAdmin(); render(); return; }
+    case 'ad-view': { const d = S.admin.docs[+el.dataset.i]; if (d) openModal({kind: 'docs', pid: null, tab: 'c:' + d.id}); return; }
     case 'print-blanks': return openModal({kind: 'docs', pid: null, tab: 'ids'});
     case 'nav-help': S.ui.view = 'help'; S.ui.modal = null; render(); return window.scrollTo(0, 0);
     case 'goto-docs': S.ui.view = 'settings'; S.ui.stab = 'clinic'; render(); return window.scrollTo(0, 0);
@@ -2811,7 +3105,7 @@ async function onClick(e){
       if (!confirm('Удалить всех пациентов, визиты, планы и настройки с этого компьютера?\n\nЭто нельзя отменить. Восстановить можно только из сохранённой копии.')) return render();
       pending.clear(); await saving.catch(() => {});
       await DB.write(STORES.map(s => ({op: 'clear', store: s})).concat(keepLicenseOps()));
-      S.settings = null; S.dk = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map();
+      S.settings = null; S.dk = null; S.patients = new Map(); S.visits = new Map(); S.plans = new Map(); S.admin = cleanAdmin(null);
       S.lock = {mode: 'pin', err: '', busy: false, fails: 0, until: 0};
       S.ui = freshUi(); S.setup = freshSetup(); S.sec = {pinErr: '', pinOk: '', pwErr: '', pwOk: '', delErr: '', busy: false};
       document.getElementById('datalists').innerHTML = '';
@@ -2842,7 +3136,8 @@ function onInput(e){
   if (f === 'pfrom'){ const pl = planFor(t); if (!pl) return; pl.from = t.value; queue('plans', pl); const l = document.querySelector('[data-linked="' + pl.id + '"]'); if (l) l.textContent = linkedLine(pl); return; }
   const v = curVisit(); if (!v || v.status === 'done') return;
   if (f === 'diag' || f === 'memo'){ v[f] = t.value; queue('visits', v); refreshFinish(v); showTpl(t); return; }
-  if (f === 'drug' || f === 'batch' || f === 'expiry' || f === 'dx'){ v[f] = t.value; queue('visits', v); refreshFinish(v); return; }
+  if (f === 'dx'){ v.dx = t.value; queue('visits', v); refreshFinish(v); showTpl(t); return; }
+  if (f === 'drug' || f === 'batch' || f === 'expiry'){ v[f] = t.value; queue('visits', v); refreshFinish(v); return; }
   if (f === 'pt'){ const q = v.points[+t.dataset.i]; if (!q) return; q.u = t.value; queue('visits', v); const s = document.getElementById('total-num'); if (s) s.textContent = fmtNum(total(v)) + ' ' + v.unit; return; }
 }
 
@@ -2850,6 +3145,9 @@ async function onChange(e){
   const t = e.target;
   if (viewMode() && S.settings && !viewInputOk(t)) return;
   if (t.dataset.rs === 'file'){ S.restore.file = t.files && t.files[0] || null; S.restore.err = ''; render(); return; }
+  if (t.id === 'reg-file'){ const file = t.files && t.files[0]; t.value = ''; if (file) await regImport(file); return; }
+  if (t.id === 'ad-file'){ const file = t.files && t.files[0]; t.value = ''; if (file) await importAdminDocs(file); return; }
+  if (t.dataset.ad){ const d = S.admin.docs[+t.dataset.i]; if (!d) return; if (t.dataset.ad === 'title') d.title = clean(t.value).slice(0, 200) || 'Документ'; else d.text = t.value.slice(0, 30000); saveAdmin(); return; }
   if (t.dataset.s){
     let val = t.type === 'checkbox' ? t.checked : t.value;
     if (t.type === 'number' || t.dataset.numeric){ val = Math.round(num(val)); const mn = num(t.dataset.min || 0), mx = num(t.dataset.max || 9999); if (t.dataset.min) val = Math.max(mn, Math.min(mx, val)); t.value = val; }
@@ -2880,7 +3178,8 @@ async function onChange(e){
   if (f === 'rperiod'){ S.ui.rperiod = t.value; const box = document.getElementById('report-body'); if (box) box.innerHTML = reportHtml(S.ui.rperiod); return; }
   if (f === 'jproc'){ S.ui.jproc = t.value; S.ui.jlimit = 60; const box = document.getElementById('journal-list'); if (box) box.innerHTML = journalListHtml(); return; }
   if (f === 'docproc'){ if (S.ui.modal){ S.ui.modal.proc = t.value; renderModal(); const sel = document.querySelector('#overlay [data-f="docproc"]'); if (sel) sel.focus(); } return; }
-  if (f === 'pdc'){ const p = pat(t.dataset.pid); if (!p) return; p.pdConsentAt = t.checked ? todayIso() : ''; queue('patients', p); render(); return; }
+  if (f === 'pdc'){ const p = pat(t.dataset.pid); if (!p) return; p.pdConsentAt = t.checked ? todayIso() : ''; if (viewMode()) p.adminAt = Date.now(); queue('patients', p); render();
+    if (viewMode() && t.checked) toast('Отмечено. Отметка уйдёт врачу со следующим «Файлом для врача».', 5000); return; }
   if (f === 'ptype'){
     const pl = planFor(t); if (!pl) return;
     pl.type = +t.value;
